@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to deploy the GitHub Copilot Usage Analyzer to GitHub Pages manually
+# Script to deploy the GitHub Copilot Premium Requests Usage Analyzer to GitHub Pages manually
 
 # Exit on error
 set -e

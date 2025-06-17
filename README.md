@@ -1,4 +1,4 @@
-# GitHub Copilot Usage Analyzer
+# GitHub Copilot Premium Requests Usage Analyzer
 
 A single-page application that visualizes GitHub Copilot premium request usage data from CSV exports. This tool helps you understand your team's Copilot usage patterns.
 
