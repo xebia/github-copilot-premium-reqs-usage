@@ -92,7 +92,7 @@ function App() {
     }
   }, [processFile]);
   
-  // Generate chart data grouped by date with a stacked entry for each model
+  // Generate chart data grouped by date with total compliant and exceeding requests
   const chartData = useCallback(() => {
     if (!aggregatedData.length) return [];
     
@@ -101,12 +101,16 @@ function App() {
     
     aggregatedData.forEach(item => {
       if (!groupedByDate[item.date]) {
-        groupedByDate[item.date] = { date: item.date };
+        groupedByDate[item.date] = { 
+          date: item.date,
+          compliant: 0,
+          exceeding: 0
+        };
       }
       
-      // Add compliant and exceeding requests for this model
-      groupedByDate[item.date][`${item.model}_compliant`] = item.compliantRequests;
-      groupedByDate[item.date][`${item.model}_exceeding`] = item.exceedingRequests;
+      // Add to total compliant and exceeding requests
+      groupedByDate[item.date].compliant += item.compliantRequests;
+      groupedByDate[item.date].exceeding += item.exceedingRequests;
     });
     
     // Convert to array sorted by date
@@ -186,13 +190,16 @@ function App() {
                   <p className="text-2xl font-bold">
                     {uniqueModels.length}
                   </p>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {uniqueModels.join(", ")}
+                  </div>
                 </div>
               </Card>
             </div>
           </div>
           
           <div>
-            <h2 className="text-2xl font-semibold mb-2">Daily Usage by Model</h2>
+            <h2 className="text-2xl font-semibold mb-2">Daily Usage Overview</h2>
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border">
               <ChartContainer 
@@ -216,40 +223,28 @@ function App() {
                   <ChartTooltip
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
-                        const modelsData: Record<string, { compliant: number, exceeding: number }> = {};
-                        
-                        payload.forEach(item => {
-                          const keyParts = String(item.dataKey).split('_');
-                          const model = keyParts[0];
-                          const type = keyParts[1];
-                          
-                          if (!modelsData[model]) {
-                            modelsData[model] = { compliant: 0, exceeding: 0 };
-                          }
-                          
-                          modelsData[model][type as 'compliant' | 'exceeding'] = Number(item.value || 0);
-                        });
+                        const compliant = payload.find(p => p.dataKey === 'compliant')?.value || 0;
+                        const exceeding = payload.find(p => p.dataKey === 'exceeding')?.value || 0;
+                        const total = Number(compliant) + Number(exceeding);
                         
                         return (
                           <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                             <div className="font-medium mb-2">{label}</div>
                             <div className="space-y-2">
-                              {Object.entries(modelsData).map(([model, stats]) => (
-                                <div key={model} className="grid grid-cols-2 gap-2">
-                                  <div className="font-medium">{model}</div>
-                                  <div />
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-                                    <span>Compliant:</span>
-                                  </div>
-                                  <div className="text-right">{stats.compliant}</div>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
-                                    <span>Exceeding:</span>
-                                  </div>
-                                  <div className="text-right">{stats.exceeding}</div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+                                  <span>Compliant:</span>
                                 </div>
-                              ))}
+                                <div className="text-right">{compliant}</div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                                  <span>Exceeding:</span>
+                                </div>
+                                <div className="text-right">{exceeding}</div>
+                                <div className="font-medium">Total:</div>
+                                <div className="text-right font-medium">{total}</div>
+                              </div>
                             </div>
                           </div>
                         );
@@ -259,29 +254,27 @@ function App() {
                   />
                   <Legend />
                   
-                  {/* Create lines for each model */}
-                  {uniqueModels.flatMap(model => [
-                    <Line
-                      key={`${model}_compliant`}
-                      type="monotone"
-                      dataKey={`${model}_compliant`}
-                      name={`${model} (Compliant)`}
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      activeDot={{ r: 6 }}
-                      stackId="1"
-                    />,
-                    <Line
-                      key={`${model}_exceeding`}
-                      type="monotone"
-                      dataKey={`${model}_exceeding`}
-                      name={`${model} (Exceeding)`}
-                      stroke="#ef4444" 
-                      strokeWidth={2}
-                      activeDot={{ r: 6 }}
-                      stackId="1"
-                    />
-                  ])}
+                  {/* Show only two lines: compliant and exceeding */}
+                  <Line
+                    key="compliant"
+                    type="monotone"
+                    dataKey="compliant"
+                    name="Compliant Requests"
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    activeDot={{ r: 6 }}
+                    stackId="1"
+                  />
+                  <Line
+                    key="exceeding"
+                    type="monotone"
+                    dataKey="exceeding"
+                    name="Exceeding Requests"
+                    stroke="#ef4444" 
+                    strokeWidth={2}
+                    activeDot={{ r: 6 }}
+                    stackId="1"
+                  />
                 </LineChart>
               </ChartContainer>
             </div>

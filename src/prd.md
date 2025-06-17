@@ -25,7 +25,7 @@
    - Success: Properly parses CSV format with correct data types and handles validation with clear feedback
 
 2. **Stacked Line Graph**
-   - What: Visualize request data by model per day with color-coded status indicators
+   - What: Visualize daily request data with color-coded status indicators showing compliant vs exceeding requests
    - Why: Makes usage patterns and quota status immediately apparent
    - Success: Clearly shows trends over time and distinguishes between quota-compliant and exceeding requests
 
