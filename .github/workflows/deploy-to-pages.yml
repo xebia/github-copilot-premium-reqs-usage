@@ -30,22 +30,111 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "18"
           cache: 'npm'
       
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Update Vite config for GitHub Pages
+      - name: Create simplified vite config
         run: |
-          # Add base path to vite.config.ts for GitHub Pages
-          sed -i 's/build: {/build: {\n    base: "\/spark-template\/",/' vite.config.ts
+          cat > vite.config.js << 'EOF'
+          import { defineConfig } from "vite";
+          import react from "@vitejs/plugin-react";
+          import { resolve } from 'path';
+          
+          // https://vitejs.dev/config/
+          export default defineConfig({
+            plugins: [react()],
+            build: {
+              base: "/spark-template/",
+              outDir: 'dist'
+            },
+            resolve: {
+              alias: {
+                '@': resolve(__dirname, 'src')
+              }
+            }
+          });
+          EOF
       
-      - name: Build
-        run: npm run build
+      - name: Create simplified package.json
+        run: |
+          cat > simplified-package.json << 'EOF'
+          {
+            "name": "github-copilot-usage-analyzer",
+            "private": true,
+            "version": "1.0.0",
+            "type": "module",
+            "scripts": {
+              "build": "vite build",
+              "preview": "vite preview"
+            },
+            "dependencies": {
+              "@phosphor-icons/react": "^2.0.15",
+              "clsx": "^2.1.0",
+              "react": "^18.2.0",
+              "react-dom": "^18.2.0",
+              "recharts": "^2.10.3",
+              "sonner": "^1.2.4",
+              "tailwind-merge": "^2.2.0"
+            },
+            "devDependencies": {
+              "@types/react": "^18.2.46",
+              "@types/react-dom": "^18.2.18",
+              "@vitejs/plugin-react": "^4.2.1",
+              "autoprefixer": "^10.4.16",
+              "postcss": "^8.4.32",
+              "tailwindcss": "^3.4.0",
+              "typescript": "^5.3.3",
+              "vite": "^5.0.10"
+            }
+          }
+          EOF
+          mv simplified-package.json package.json
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Create modified App with no Spark dependencies
+        run: |
+          # Create a file to replace @github/spark imports
+          mkdir -p src/spark-shims
+          cat > src/spark-shims/hooks.js << 'EOF'
+          import { useState } from 'react';
+          
+          // Simple localStorage-based shim for useKV hook
+          export function useKV(key, initialValue) {
+            const storageKey = `kv-${key}`;
+            
+            // Get from localStorage
+            const stored = localStorage.getItem(storageKey);
+            const initial = stored !== null ? JSON.parse(stored) : initialValue;
+            
+            const [value, setValue] = useState(initial);
+            
+            const setValueAndStore = (newValue) => {
+              const valueToStore = newValue instanceof Function ? newValue(value) : newValue;
+              setValue(valueToStore);
+              localStorage.setItem(storageKey, JSON.stringify(valueToStore));
+            };
+            
+            const deleteValue = () => {
+              setValue(null);
+              localStorage.removeItem(storageKey);
+            };
+            
+            return [value, setValueAndStore, deleteValue];
+          }
+          EOF
+      
+      - name: Update imports in code
+        run: |
+          # Replace imports from @github/spark/hooks with our shim
+          find src -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/import {.*} from "@github\/spark\/hooks"/import { useKV } from "..\/spark-shims\/hooks"/g'
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
+      
+      - name: Build
+        run: npm run build
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
