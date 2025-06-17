@@ -116,6 +116,7 @@
 - **Scalability Needs**: Potential for additional chart types or filtering options in the future
 - **Testing Focus**: Validate with various CSV formats and sizes
 - **Critical Questions**: How to optimize performance for large datasets?
+- **Deployment Strategy**: Configured for GitHub Pages deployment to enable simple sharing and access without requiring server infrastructure
 
 ## Reflection
 - This approach uniquely focuses on simplicity and clarity for a technical audience needing quick insights.
