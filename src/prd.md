@@ -34,6 +34,16 @@
    - Why: Converts raw timestamp data into meaningful daily summaries
    - Success: Correctly groups and counts requests by day, model, and quota status
 
+4. **Model Usage Statistics**
+   - What: Display detailed model usage statistics in tabular format
+   - Why: Provides granular insights into which models are being used and their quota status
+   - Success: Clear presentation of model-specific usage data in an easily scannable table format
+   
+5. **Bar Chart Visualization**
+   - What: Visualize model usage per day with multi-colored bar chart
+   - Why: Offers an alternative visualization that highlights model distribution over time
+   - Success: Clearly distinguishes between different models and shows their relative usage per day
+
 ## Design Direction
 
 ### Visual Tone & Identity

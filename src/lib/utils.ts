@@ -53,6 +53,19 @@ export function parseCSV(csv: string): CopilotUsageData[] {
   });
 }
 
+export interface ModelUsageSummary {
+  model: string;
+  totalRequests: number;
+  compliantRequests: number;
+  exceedingRequests: number;
+}
+
+export interface DailyModelData {
+  date: string;
+  model: string;
+  requests: number;
+}
+
 export function aggregateDataByDay(data: CopilotUsageData[]): AggregatedData[] {
   const aggregated: Record<string, AggregatedData> = {};
   
@@ -77,6 +90,57 @@ export function aggregateDataByDay(data: CopilotUsageData[]): AggregatedData[] {
   });
   
   // Convert to array and sort by date and model
+  return Object.values(aggregated).sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.model.localeCompare(b.model);
+  });
+}
+
+export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummary[] {
+  const summary: Record<string, ModelUsageSummary> = {};
+  
+  data.forEach(item => {
+    if (!summary[item.model]) {
+      summary[item.model] = {
+        model: item.model,
+        totalRequests: 0,
+        compliantRequests: 0,
+        exceedingRequests: 0
+      };
+    }
+    
+    summary[item.model].totalRequests += item.requestsUsed;
+    
+    if (item.exceedsQuota) {
+      summary[item.model].exceedingRequests += item.requestsUsed;
+    } else {
+      summary[item.model].compliantRequests += item.requestsUsed;
+    }
+  });
+  
+  // Convert to array and sort by total requests (descending)
+  return Object.values(summary).sort((a, b) => b.totalRequests - a.totalRequests);
+}
+
+export function getDailyModelData(data: CopilotUsageData[]): DailyModelData[] {
+  const aggregated: Record<string, DailyModelData> = {};
+  
+  data.forEach(item => {
+    const date = item.timestamp.toISOString().split('T')[0];
+    const key = `${date}-${item.model}`;
+    
+    if (!aggregated[key]) {
+      aggregated[key] = {
+        date,
+        model: item.model,
+        requests: 0
+      };
+    }
+    
+    aggregated[key].requests += item.requestsUsed;
+  });
+  
+  // Convert to array and sort by date
   return Object.values(aggregated).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.model.localeCompare(b.model);

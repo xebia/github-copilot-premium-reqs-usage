@@ -2,18 +2,31 @@ import { useState, useCallback, useRef, DragEvent } from "react";
 import { Upload } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, Cell
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { AggregatedData, CopilotUsageData, aggregateDataByDay, parseCSV } from "@/lib/utils";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  AggregatedData, 
+  CopilotUsageData, 
+  ModelUsageSummary,
+  DailyModelData,
+  aggregateDataByDay, 
+  parseCSV,
+  getModelUsageSummary,
+  getDailyModelData
+} from "@/lib/utils";
 
 function App() {
   const [data, setData] = useState<CopilotUsageData[] | null>(null);
   const [aggregatedData, setAggregatedData] = useState<AggregatedData[]>([]);
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
+  const [modelSummary, setModelSummary] = useState<ModelUsageSummary[]>([]);
+  const [dailyModelData, setDailyModelData] = useState<DailyModelData[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -37,12 +50,22 @@ function App() {
         const aggregated = aggregateDataByDay(parsedData);
         setAggregatedData(aggregated);
         
+        // Get model usage summary
+        const summary = getModelUsageSummary(parsedData);
+        setModelSummary(summary);
+        
+        // Get daily model data for bar chart
+        const dailyData = getDailyModelData(parsedData);
+        setDailyModelData(dailyData);
+        
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
         console.error("Error parsing CSV:", error);
         toast.error("Failed to parse CSV file. Please check the format.");
         setData(null);
         setAggregatedData([]);
+        setModelSummary([]);
+        setDailyModelData([]);
       }
     };
     
@@ -118,6 +141,72 @@ function App() {
       a.date.localeCompare(b.date)
     );
   }, [aggregatedData]);
+  
+  // Generate bar chart data grouped by date and model
+  const barChartData = useCallback(() => {
+    if (!dailyModelData.length) return [];
+    
+    // Group by date first
+    const groupedByDate: Record<string, any> = {};
+    
+    // Get all unique dates and models
+    const dates = new Set<string>();
+    const models = new Set<string>();
+    
+    dailyModelData.forEach(item => {
+      dates.add(item.date);
+      models.add(item.model);
+    });
+    
+    // Create entries for each date
+    dates.forEach(date => {
+      groupedByDate[date] = { 
+        date,
+      };
+      
+      // Initialize models with zero
+      models.forEach(model => {
+        groupedByDate[date][model] = 0;
+      });
+    });
+    
+    // Fill in the actual data
+    dailyModelData.forEach(item => {
+      groupedByDate[item.date][item.model] = item.requests;
+    });
+    
+    // Convert to array sorted by date
+    return Object.values(groupedByDate).sort((a: any, b: any) => 
+      a.date.localeCompare(b.date)
+    );
+  }, [dailyModelData]);
+
+  // Get unique model names for bar chart
+  const getUniqueModelsForBarChart = useCallback(() => {
+    return uniqueModels;
+  }, [uniqueModels]);
+  
+  // Generate colors for models in bar chart
+  const getModelColors = useCallback(() => {
+    // Use a set of predefined colors that are visually distinct
+    const colors = [
+      "#4285F4", // Blue
+      "#EA4335", // Red
+      "#FBBC05", // Yellow
+      "#34A853", // Green
+      "#8E44AD", // Purple
+      "#F39C12", // Orange
+      "#16A085", // Teal
+      "#E74C3C", // Red-Orange
+      "#3498DB", // Light Blue
+      "#1ABC9C"  // Turquoise
+    ];
+    
+    return uniqueModels.reduce((acc, model, index) => {
+      acc[model] = colors[index % colors.length];
+      return acc;
+    }, {} as Record<string, string>);
+  }, [uniqueModels]);
 
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
@@ -167,7 +256,7 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold mb-2">Usage Statistics</h2>
             <Separator className="mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <Card>
                 <div className="p-5">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Requests</h3>
@@ -190,9 +279,55 @@ function App() {
                   <p className="text-2xl font-bold">
                     {uniqueModels.length}
                   </p>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    {uniqueModels.join(", ")}
-                  </div>
+                </div>
+              </Card>
+            </div>
+            
+            {/* Model Usage Table */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              <Card className="p-5">
+                <h3 className="text-md font-medium mb-3">Requests per Model</h3>
+                <div className="overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Model</TableHead>
+                        <TableHead className="text-right">Total Requests</TableHead>
+                        <TableHead className="text-right">Compliant</TableHead>
+                        <TableHead className="text-right">Exceeding</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {modelSummary.map((item) => (
+                        <TableRow key={item.model}>
+                          <TableCell className="font-medium">{item.model}</TableCell>
+                          <TableCell className="text-right">{item.totalRequests.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{item.compliantRequests.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+              
+              <Card className="p-5">
+                <h3 className="text-md font-medium mb-3">Models List</h3>
+                <div className="overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Model Name</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {uniqueModels.map((model) => (
+                        <TableRow key={model}>
+                          <TableCell>{model}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </Card>
             </div>
@@ -201,7 +336,7 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold mb-2">Daily Usage Overview</h2>
             <Separator className="mb-6" />
-            <div className="bg-card p-4 rounded-lg border">
+            <div className="bg-card p-4 rounded-lg border mb-8">
               <ChartContainer 
                 config={{
                   compliant: { color: "#10b981" }, // green
@@ -276,6 +411,66 @@ function App() {
                     stackId="1"
                   />
                 </LineChart>
+              </ChartContainer>
+            </div>
+            
+            {/* Bar Chart - Requests per Model per Day */}
+            <h2 className="text-2xl font-semibold mb-2">Requests per Model per Day</h2>
+            <Separator className="mb-6" />
+            <div className="bg-card p-4 rounded-lg border">
+              <ChartContainer 
+                config={getModelColors()}
+                className="h-[500px] w-full"
+              >
+                <BarChart data={barChartData()}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis 
+                    dataKey="date"
+                    tick={{ fill: 'var(--foreground)' }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'var(--foreground)' }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="border rounded-lg bg-background shadow-lg p-3">
+                            <div className="font-medium mb-2">{label}</div>
+                            <div className="space-y-2">
+                              {payload.map((entry, index) => (
+                                <div key={`item-${index}`} className="flex justify-between items-center gap-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <div 
+                                      className="w-2 h-2 rounded-full" 
+                                      style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span>{entry.name}:</span>
+                                  </div>
+                                  <div className="font-medium">{entry.value}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  
+                  {/* Generate a bar for each model */}
+                  {getUniqueModelsForBarChart().map((model, index) => (
+                    <Bar 
+                      key={model}
+                      dataKey={model}
+                      name={model}
+                      fill={getModelColors()[model]}
+                    />
+                  ))}
+                </BarChart>
               </ChartContainer>
             </div>
           </div>
