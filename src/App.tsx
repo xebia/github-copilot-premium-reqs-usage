@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, DragEvent } from "react";
-import { Upload } from "@phosphor-icons/react";
+import { Upload, GithubLogo } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -211,12 +211,27 @@ function App() {
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
-          GitHub Copilot Usage Analyzer
-        </h1>
-        <p className="text-muted-foreground">
-          Upload your Copilot usage CSV export to visualize request patterns
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+              GitHub Copilot Usage Analyzer
+            </h1>
+            <p className="text-muted-foreground">
+              Upload your Copilot usage CSV export to visualize request patterns
+            </p>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a 
+              href="https://github.com/devops-actions/github-copilot-premium-reqs-usage" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2"
+            >
+              <GithubLogo size={16} />
+              Contribute
+            </a>
+          </Button>
+        </div>
       </header>
       
       <Card className="mb-8">
