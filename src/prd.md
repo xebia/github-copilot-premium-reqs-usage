@@ -1,4 +1,4 @@
-# GitHub Copilot Usage Analyzer
+# GitHub Copilot Premium Requests Usage Analyzer
 
 ## Core Purpose & Success
 - **Mission Statement**: A tool that visualizes GitHub Copilot premium request usage to help teams monitor and optimize their AI resource consumption.

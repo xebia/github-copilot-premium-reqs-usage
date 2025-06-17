@@ -214,7 +214,7 @@ function App() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
-              GitHub Copilot Usage Analyzer
+              GitHub Copilot Premium Requests Usage Analyzer
             </h1>
             <p className="text-muted-foreground">
               Upload your Copilot usage CSV export to visualize request patterns

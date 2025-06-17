@@ -1,6 +1,6 @@
 # GitHub Pages Deployment Guide
 
-This document provides detailed instructions for deploying the GitHub Copilot Usage Analyzer to GitHub Pages.
+This document provides detailed instructions for deploying the GitHub Copilot Premium Requests Usage Analyzer to GitHub Pages.
 
 ## Understanding the Deployment Process
 

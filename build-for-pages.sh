@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to build the GitHub Copilot Usage Analyzer for GitHub Pages deployment
+# Script to build the GitHub Copilot Premium Requests Usage Analyzer for GitHub Pages deployment
 # This script creates a version without Spark dependencies
 
 # Exit on error
