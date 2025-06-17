@@ -2,7 +2,7 @@
     "name": "github-copilot-usage-analyzer",
     "private": true,
     "version": "1.0.0",
-    "homepage": "https://github.com/pages/[your-username]/github-copilot-usage/",
+    "homepage": "./",
     "type": "module",
     "scripts": {
         "dev": "vite",
@@ -11,7 +11,7 @@
         "lint": "eslint .",
         "optimize": "vite optimize",
         "preview": "vite preview",
-        "build:pages": "cp src/main-github-pages.tsx src/main.tsx && vite build && git checkout src/main.tsx",
+        "build:pages": "cp src/main-github-pages.tsx src/main.tsx && vite build --config vite.github-pages.config.ts && git checkout src/main.tsx",
         "predeploy": "npm run build:pages",
         "deploy": "gh-pages -d dist"
     },
