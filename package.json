@@ -5,16 +5,16 @@
     "homepage": "./",
     "type": "module",
     "scripts": {
-        "dev": "vite",
-        "kill": "fuser -k 5000/tcp",
-        "build": "tsc -b --noCheck && vite build",
-        "lint": "eslint .",
-        "optimize": "vite optimize",
-        "preview": "vite preview",
-        "build:pages": "cp src/main-github-pages.tsx src/main.tsx && vite build --config vite.github-pages.config.ts && git checkout src/main.tsx",
-        "predeploy": "npm run build:pages",
-        "deploy": "gh-pages -d dist"
-    },
+    "dev": "vite",
+    "kill": "fuser -k 5000/tcp",
+    "build": "tsc -b --noCheck && vite build",
+    "lint": "eslint .",
+    "optimize": "vite optimize",
+    "preview": "vite preview",
+    "build:pages": "bash ./build-for-gh-pages.sh",
+    "predeploy": "npm run build:pages",
+    "deploy": "gh-pages -d dist"
+  },
     "dependencies": {
         "@github/spark": "^0.0.1",
         "@heroicons/react": "^2.2.0",

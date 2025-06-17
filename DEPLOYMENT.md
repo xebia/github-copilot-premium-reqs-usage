@@ -48,7 +48,8 @@ This will:
 ## Configuration
 
 - The application uses a special Vite configuration for GitHub Pages deployment (`vite.github-pages.config.ts`)
-- It uses a special version of the main.tsx file without Spark-specific dependencies
+- The `main-github-pages.tsx` file excludes Spark-specific imports that cause build issues
+- Build configuration excludes `@github/spark/spark` from bundling
 - Base URL is set to `'./'` to allow relative paths on GitHub Pages
 
 ## Troubleshooting
@@ -59,3 +60,4 @@ If you encounter deployment issues:
 2. Verify that GitHub Pages is properly configured in your repository settings
 3. Make sure all dependencies are properly installed
 4. Confirm that the GitHub Pages branch (gh-pages) is correctly set as the publishing source
+5. Examine the build logs for errors related to missing dependencies
