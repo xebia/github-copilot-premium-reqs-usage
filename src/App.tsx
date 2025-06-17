@@ -33,11 +33,32 @@ function App() {
   const processFile = useCallback((file: File) => {
     if (!file) return;
     
+    // Add basic file validation
+    if (!file.type.includes('text') && !file.type.includes('csv') && !file.name.endsWith('.csv')) {
+      toast.error("Please upload a valid CSV or text file.");
+      return;
+    }
+    
     const reader = new FileReader();
+    
+    reader.onerror = () => {
+      toast.error("Failed to read the file. The file may be corrupted or unreadable.");
+    };
+    
     reader.onload = (e) => {
       try {
         const csvContent = e.target?.result as string;
-        if (!csvContent) throw new Error("Failed to read file");
+        if (!csvContent) throw new Error("Failed to read file content");
+        
+        // Check if the content looks like text (not binary)
+        if (csvContent.includes('\0')) {
+          throw new Error("File appears to be binary. Please upload a text-based CSV file.");
+        }
+        
+        // Check for minimum content
+        if (csvContent.trim().length === 0) {
+          throw new Error("File is empty. Please upload a CSV file with data.");
+        }
         
         const parsedData = parseCSV(csvContent);
         setData(parsedData);
@@ -61,7 +82,32 @@ function App() {
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
         console.error("Error parsing CSV:", error);
-        toast.error("Failed to parse CSV file. Please check the format.");
+        let errorMessage = "Failed to parse CSV file. Please check the format.";
+        
+        if (error instanceof Error) {
+          // Provide more specific error messages based on the error type
+          if (error.message.includes("missing required columns")) {
+            errorMessage = "Invalid CSV format: " + error.message;
+          } else if (error.message.includes("Invalid timestamp")) {
+            errorMessage = "Invalid data format: " + error.message;
+          } else if (error.message.includes("Invalid requests used")) {
+            errorMessage = "Invalid data format: " + error.message;
+          } else if (error.message.includes("Invalid exceeds quota")) {
+            errorMessage = "Invalid data format: " + error.message;
+          } else if (error.message.includes("Invalid CSV row format")) {
+            errorMessage = "Invalid CSV structure: " + error.message;
+          } else if (error.message.includes("binary")) {
+            errorMessage = error.message;
+          } else if (error.message.includes("empty")) {
+            errorMessage = error.message;
+          } else if (error.message.includes("header")) {
+            errorMessage = "Invalid CSV format: " + error.message;
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        toast.error(errorMessage);
         setData(null);
         setAggregatedData([]);
         setModelSummary([]);
@@ -107,10 +153,10 @@ function App() {
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (file.type === "text/csv" || file.name.endsWith('.csv')) {
+      if (file.type === "text/csv" || file.name.endsWith('.csv') || file.type.includes('text')) {
         processFile(file);
       } else {
-        toast.error("Please upload a CSV file.");
+        toast.error("Please upload a CSV file. Supported formats: .csv files or text files with CSV content.");
       }
     }
   }, [processFile]);
