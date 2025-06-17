@@ -261,7 +261,7 @@ function App() {
                 <div className="p-5">
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Requests</h3>
                   <p className="text-2xl font-bold">
-                    {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString()}
+                    {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
                   </p>
                 </div>
               </Card>
@@ -301,9 +301,9 @@ function App() {
                       {modelSummary.map((item) => (
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
-                          <TableCell className="text-right">{item.totalRequests.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{item.compliantRequests.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -371,14 +371,14 @@ function App() {
                                   <div className="w-2 h-2 rounded-full bg-[#10b981]" />
                                   <span>Compliant:</span>
                                 </div>
-                                <div className="text-right">{compliant}</div>
+                                <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
                                 <div className="flex items-center gap-1.5">
                                   <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
                                   <span>Exceeding:</span>
                                 </div>
-                                <div className="text-right">{exceeding}</div>
+                                <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
                                 <div className="font-medium">Total:</div>
-                                <div className="text-right font-medium">{total}</div>
+                                <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
                               </div>
                             </div>
                           </div>
@@ -449,7 +449,7 @@ function App() {
                                     />
                                     <span>{entry.name}:</span>
                                   </div>
-                                  <div className="font-medium">{entry.value}</div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
                                 </div>
                               ))}
                             </div>

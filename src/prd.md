@@ -30,9 +30,9 @@
    - Success: Clearly shows trends over time and distinguishes between quota-compliant and exceeding requests
 
 3. **Data Processing**
-   - What: Transform raw CSV data into aggregated daily metrics by model
-   - Why: Converts raw timestamp data into meaningful daily summaries
-   - Success: Correctly groups and counts requests by day, model, and quota status
+   - What: Transform raw CSV data into aggregated daily metrics by model, correctly handling decimal request values
+   - Why: Converts raw timestamp data into meaningful daily summaries, ensuring accurate representation of fractional requests
+   - Success: Correctly groups and counts requests by day, model, and quota status, properly parsing and displaying decimal values
 
 4. **Model Usage Statistics**
    - What: Display detailed model usage statistics in tabular format
@@ -108,8 +108,8 @@
 - **Chart Accessibility**: Multiple visual cues beyond color (patterns or labels) to distinguish data series
 
 ## Edge Cases & Problem Scenarios
-- **Potential Obstacles**: Malformed CSV files, very large datasets
-- **Edge Case Handling**: Validation messaging for incorrect file formats, graceful handling of parsing errors
+- **Potential Obstacles**: Malformed CSV files, very large datasets, fractional request values
+- **Edge Case Handling**: Validation messaging for incorrect file formats, graceful handling of parsing errors, proper display of decimal values
 - **Technical Constraints**: Browser-based CSV parsing limitations
 
 ## Implementation Considerations

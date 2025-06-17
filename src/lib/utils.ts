@@ -46,7 +46,7 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       timestamp: new Date(values[0]),
       user: values[1],
       model: values[2],
-      requestsUsed: parseInt(values[3], 10),
+      requestsUsed: parseFloat(values[3]),
       exceedsQuota: values[4].toLowerCase() === "true",
       totalMonthlyQuota: values[5],
     };
