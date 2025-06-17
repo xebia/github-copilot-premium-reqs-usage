@@ -2,6 +2,23 @@
 
 A single-page application that visualizes GitHub Copilot premium request usage data from CSV exports. This tool helps you understand your team's Copilot usage patterns.
 
+## Quick Start
+
+Need to analyze the premium requests CSV? 
+I created a SPA with Spark and Coding Agent to display an overview of the Premium Requests CSV that you can currently download (no API yet 😓), so share it where needed! 
+ 
+Hosted on GitHub Pages: [GitHub Copilot Premium Requests Usage Analyzer](https://devops-actions.github.io/github-copilot-premium-reqs-usage/)
+
+Upload the CSV from the enterprise export (Billing and Licenses → Usage → Export dropdown right top)
+ 
+Result: 
+
+![Image](https://github.com/user-attachments/assets/b4492fef-aff9-464e-8ac8-6830475d00ef)  
+
+![Image](https://github.com/user-attachments/assets/b2d896f5-269a-4b33-9bb9-7e28354fdc5e)  
+
+![Image](https://github.com/user-attachments/assets/f8fb7acd-a369-492e-a93a-158fbb1bd0a7)
+
 ## Features
 
 - Upload and parse GitHub Copilot usage CSV data
