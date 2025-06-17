@@ -4,6 +4,11 @@ on:
   release:
     types: [created]
 
+# Allow only one concurrent release build
+concurrency:
+  group: "publish-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest

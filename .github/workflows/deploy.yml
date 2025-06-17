@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+# Allow only one concurrent deployment per branch
+concurrency:
+  group: "deploy-${{ github.ref }}"
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
