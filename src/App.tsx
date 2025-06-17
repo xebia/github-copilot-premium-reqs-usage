@@ -219,37 +219,39 @@ function App() {
         </p>
       </header>
       
-      <Card className="mb-8">
-        <div 
-          className={`p-6 text-center ${isDragging ? 'bg-secondary/50' : ''} transition-colors duration-200`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="mb-4">
-            <Upload size={48} weight="thin" className="mx-auto text-muted-foreground" />
+      {!(data && data.length > 0) && (
+        <Card className="mb-8">
+          <div 
+            className={`p-6 text-center ${isDragging ? 'bg-secondary/50' : ''} transition-colors duration-200`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <div className="mb-4">
+              <Upload size={48} weight="thin" className="mx-auto text-muted-foreground" />
+            </div>
+            
+            <h2 className="text-xl font-medium mb-2">Upload CSV File</h2>
+            <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+              {isDragging 
+                ? "Drop your file here..." 
+                : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
+            </p>
+            
+            <Button onClick={handleButtonClick} className="cursor-pointer">
+              Select CSV File
+            </Button>
+            <input
+              ref={fileInputRef}
+              id="csv-upload"
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
           </div>
-          
-          <h2 className="text-xl font-medium mb-2">Upload CSV File</h2>
-          <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-            {isDragging 
-              ? "Drop your file here..." 
-              : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
-          </p>
-          
-          <Button onClick={handleButtonClick} className="cursor-pointer">
-            Select CSV File
-          </Button>
-          <input
-            ref={fileInputRef}
-            id="csv-upload"
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-        </div>
-      </Card>
+        </Card>
+      )}
       
       {data && data.length > 0 && (
         <div className="space-y-8">
