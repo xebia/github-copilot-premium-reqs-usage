@@ -73,3 +73,9 @@
 body {
   font-family: 'Inter', sans-serif;
 }
+
+/* Add styles for drag and drop */
+[data-dragging="true"] {
+  border: 2px dashed var(--primary);
+  background-color: var(--secondary);
+}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, DragEvent } from "react";
 import { Upload } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
@@ -14,9 +14,10 @@ function App() {
   const [data, setData] = useState<CopilotUsageData[] | null>(null);
   const [aggregatedData, setAggregatedData] = useState<AggregatedData[]>([]);
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const processFile = useCallback((file: File) => {
     if (!file) return;
     
     const reader = new FileReader();
@@ -47,6 +48,49 @@ function App() {
     
     reader.readAsText(file);
   }, []);
+  
+  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+    // Reset the input value to allow selecting the same file again
+    if (event.target) {
+      event.target.value = '';
+    }
+  }, [processFile]);
+  
+  const handleButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+  
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+  
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type === "text/csv" || file.name.endsWith('.csv')) {
+        processFile(file);
+      } else {
+        toast.error("Please upload a CSV file.");
+      }
+    }
+  }, [processFile]);
   
   // Generate chart data grouped by date with a stacked entry for each model
   const chartData = useCallback(() => {
@@ -83,28 +127,34 @@ function App() {
       </header>
       
       <Card className="mb-8">
-        <div className="p-6 text-center">
+        <div 
+          className={`p-6 text-center ${isDragging ? 'bg-secondary/50' : ''} transition-colors duration-200`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <div className="mb-4">
             <Upload size={48} weight="thin" className="mx-auto text-muted-foreground" />
           </div>
           
           <h2 className="text-xl font-medium mb-2">Upload CSV File</h2>
           <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-            Upload your GitHub Copilot premium requests usage CSV export to visualize the data
+            {isDragging 
+              ? "Drop your file here..." 
+              : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
           </p>
           
-          <label htmlFor="csv-upload">
-            <Button as="div" className="cursor-pointer">
-              Select CSV File
-            </Button>
-            <input
-              id="csv-upload"
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
+          <Button onClick={handleButtonClick} className="cursor-pointer">
+            Select CSV File
+          </Button>
+          <input
+            ref={fileInputRef}
+            id="csv-upload"
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
         </div>
       </Card>
       

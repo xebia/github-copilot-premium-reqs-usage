@@ -20,9 +20,9 @@
 
 ## Essential Features
 1. **CSV Upload**
-   - What: Allow users to upload GitHub Copilot usage CSV exports
-   - Why: Provides the raw data needed for analysis
-   - Success: Properly parses CSV format with correct data types and handles validation
+   - What: Allow users to upload GitHub Copilot usage CSV exports via file selection or drag-and-drop interface
+   - Why: Provides flexible options for adding data to the analysis
+   - Success: Properly parses CSV format with correct data types and handles validation with clear feedback
 
 2. **Stacked Line Graph**
    - What: Visualize request data by model per day with color-coded status indicators
@@ -79,9 +79,9 @@
 - **Contextual Appropriateness**: Minimal animations focused on data state changes
 
 ### UI Elements & Component Selection
-- **Component Usage**: Card for the upload area, Button for triggering upload, Toast for notifications
-- **Component Customization**: Rounded corners and subtle shadows for cards
-- **Component States**: Clear hover/focus states for interactive elements
+- **Component Usage**: Card with drag-and-drop support for the upload area, Button for triggering upload, Toast for notifications
+- **Component Customization**: Rounded corners and subtle shadows for cards, visual feedback for drag states
+- **Component States**: Clear hover/focus states for interactive elements, distinctive styling for drag-over states
 - **Icon Selection**: Upload icon, chart icon, and information icon where appropriate
 - **Component Hierarchy**: Upload component as primary action initially, chart as main focus after data load
 - **Spacing System**: Consistent spacing using Tailwind's spacing scale
