@@ -256,29 +256,27 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold mb-2">Usage Statistics</h2>
             <Separator className="mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="mb-4">
               <Card>
-                <div className="p-5">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Requests</h3>
-                  <p className="text-2xl font-bold">
-                    {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
-                  </p>
-                </div>
-              </Card>
-              <Card>
-                <div className="p-5">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Unique Users</h3>
-                  <p className="text-2xl font-bold">
-                    {new Set(data.map(item => item.user)).size.toLocaleString()}
-                  </p>
-                </div>
-              </Card>
-              <Card>
-                <div className="p-5">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Models Used</h3>
-                  <p className="text-2xl font-bold">
-                    {uniqueModels.length}
-                  </p>
+                <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6 divide-x divide-border">
+                  <div className="px-4">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Requests</h3>
+                    <p className="text-2xl font-bold">
+                      {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                    </p>
+                  </div>
+                  <div className="px-4">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Unique Users</h3>
+                    <p className="text-2xl font-bold">
+                      {new Set(data.map(item => item.user)).size.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="px-4">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Models Used</h3>
+                    <p className="text-2xl font-bold">
+                      {uniqueModels.length}
+                    </p>
+                  </div>
                 </div>
               </Card>
             </div>
