@@ -3,6 +3,3 @@ contact_links:
   - name: 📚 Documentation
     url: https://github.com/devops-actions/github-copilot-premium-reqs-usage/blob/main/README.md
     about: Check the project documentation
-  - name: 💬 Discussions
-    url: https://github.com/devops-actions/github-copilot-premium-reqs-usage/discussions
-    about: Ask questions and discuss ideas with the community
