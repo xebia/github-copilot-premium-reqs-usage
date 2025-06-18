@@ -27,27 +27,94 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     throw new Error('CSV must contain a header row and at least one data row');
   }
   
+  // Validate header row
+  const headerLine = lines[0];
+  const expectedHeaders = ['Timestamp', 'User', 'Model', 'Requests Used', 'Exceeds Monthly Quota', 'Total Monthly Quota'];
+  
+  // Parse header row to check for expected columns
+  // First, trim any trailing whitespace from the header line
+  const trimmedHeaderLine = headerLine.trim();
+  const headerMatches = trimmedHeaderLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
+  if (!headerMatches || headerMatches.length < 6) {
+    throw new Error('CSV header must contain at least 6 columns');
+  }
+  
+  const headers = headerMatches.map(m => {
+    // Remove trailing comma if present
+    let processed = m.endsWith(',') ? m.slice(0, -1) : m;
+    // Remove surrounding quotes if present
+    processed = processed.replace(/^"(.*)"$/, '$1');
+    return processed;
+  }).filter(h => h.trim() !== '').map(h => h.trim()); // Filter empty strings and trim whitespace
+  
+  // Check if all expected headers are present (case-insensitive exact match)
+  const missingHeaders = expectedHeaders.filter(expected => 
+    !headers.some(header => header.toLowerCase() === expected.toLowerCase())
+  );
+  
+  // Log detailed header information for debugging
+  if (missingHeaders.length > 0) {
+    console.log('CSV Header validation failed:');
+    console.log('Expected headers:', expectedHeaders);
+    console.log('Found headers:', headers);
+    console.log('Missing headers:', missingHeaders);
+    headers.forEach((header, i) => {
+      const expectedHeader = expectedHeaders[i];
+      if (expectedHeader) {
+        const matches = header.toLowerCase() === expectedHeader.toLowerCase();
+        console.log(`  Column ${i + 1}: "${header}" ${matches ? '✅' : '❌'} (expected: "${expectedHeader}")`);
+      } else {
+        console.log(`  Column ${i + 1}: "${header}" (extra column)`);
+      }
+    });
+  }
+  
+  if (missingHeaders.length > 0) {
+    throw new Error(`CSV is missing required columns: ${missingHeaders.join(', ')}. Expected columns: ${expectedHeaders.join(', ')}`);
+  }
+  
   // Skip the header row and process data rows
-  return lines.slice(1).map(line => {
-    // Handle quoted CSV properly
-    const matches = line.match(/("([^"]*)"|([^,]*))(,|$)/g);
+  return lines.slice(1).map((line, index) => {
+    // Handle quoted CSV properly - trim any trailing whitespace first
+    const trimmedLine = line.trim();
+    const matches = trimmedLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
     
     if (!matches || matches.length < 6) {
-      throw new Error('Invalid CSV row format');
+      throw new Error(`Invalid CSV row format at line ${index + 2}: expected 6 columns, got ${matches ? matches.length : 0}`);
     }
     
-    const values = matches.map(m => 
-      m.endsWith(',') 
-        ? m.slice(0, -1).replace(/^"(.*)"$/, '$1') 
-        : m.replace(/^"(.*)"$/, '$1')
-    );
+    const values = matches.map(m => {
+      // Remove trailing comma if present
+      let processed = m.endsWith(',') ? m.slice(0, -1) : m;
+      // Remove surrounding quotes if present
+      processed = processed.replace(/^"(.*)"$/, '$1');
+      return processed;
+    }).filter(v => v.trim() !== ''); // Filter out empty values
+    
+    // Validate timestamp
+    const timestamp = new Date(values[0]);
+    if (isNaN(timestamp.getTime())) {
+      throw new Error(`Invalid timestamp format at line ${index + 2}: "${values[0]}"`);
+    }
+    
+    // Validate requests used
+    const requestsUsed = parseFloat(values[3]);
+    if (isNaN(requestsUsed)) {
+      throw new Error(`Invalid requests used value at line ${index + 2}: "${values[3]}" must be a number`);
+    }
+    
+    // Validate exceeds quota
+    const exceedsQuotaValue = values[4].toLowerCase();
+    if (exceedsQuotaValue !== 'true' && exceedsQuotaValue !== 'false') {
+      throw new Error(`Invalid exceeds quota value at line ${index + 2}: "${values[4]}" must be "true" or "false"`);
+    }
     
     return {
-      timestamp: new Date(values[0]),
+      timestamp,
       user: values[1],
       model: values[2],
-      requestsUsed: parseFloat(values[3]),
-      exceedsQuota: values[4].toLowerCase() === "true",
+      requestsUsed,
+      exceedsQuota: exceedsQuotaValue === "true",
       totalMonthlyQuota: values[5],
     };
   });
