@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, DragEvent } from "react";
 import { Upload, GithubLogo } from "@phosphor-icons/react";
-import { toast } from "sonner";
+import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell
@@ -542,6 +542,7 @@ function App() {
           </div>
         </div>
       )}
+      <Toaster position="top-right" />
     </div>
   );
 }
