@@ -213,3 +213,102 @@ export function getDailyModelData(data: CopilotUsageData[]): DailyModelData[] {
     return a.model.localeCompare(b.model);
   });
 }
+
+// Power user interfaces and functions
+export interface PowerUserData {
+  user: string;
+  totalRequests: number;
+  requestsByModel: Record<string, number>;
+  dailyActivity: Array<{
+    date: string;
+    requests: number;
+  }>;
+}
+
+export interface PowerUserSummary {
+  powerUsers: PowerUserData[];
+  totalPowerUsers: number;
+  totalPowerUserRequests: number;
+  powerUserModelSummary: ModelUsageSummary[];
+}
+
+// Define power user threshold - users with more than 10 requests
+export const POWER_USER_THRESHOLD = 10;
+
+export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
+  // First, aggregate total requests per user
+  const userTotals: Record<string, number> = {};
+  data.forEach(item => {
+    userTotals[item.user] = (userTotals[item.user] || 0) + item.requestsUsed;
+  });
+  
+  // Identify power users (users exceeding threshold)
+  const powerUserNames = Object.keys(userTotals).filter(
+    user => userTotals[user] > POWER_USER_THRESHOLD
+  );
+  
+  // Filter data to only power users
+  const powerUserData = data.filter(item => powerUserNames.includes(item.user));
+  
+  // Create detailed power user objects
+  const powerUsers: PowerUserData[] = powerUserNames.map(userName => {
+    const userRequests = powerUserData.filter(item => item.user === userName);
+    
+    // Aggregate by model
+    const requestsByModel: Record<string, number> = {};
+    userRequests.forEach(item => {
+      requestsByModel[item.model] = (requestsByModel[item.model] || 0) + item.requestsUsed;
+    });
+    
+    // Aggregate daily activity
+    const dailyActivity: Record<string, number> = {};
+    userRequests.forEach(item => {
+      const date = item.timestamp.toISOString().split('T')[0];
+      dailyActivity[date] = (dailyActivity[date] || 0) + item.requestsUsed;
+    });
+    
+    const dailyActivityArray = Object.entries(dailyActivity)
+      .map(([date, requests]) => ({ date, requests }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    
+    return {
+      user: userName,
+      totalRequests: userTotals[userName],
+      requestsByModel,
+      dailyActivity: dailyActivityArray
+    };
+  });
+  
+  // Sort power users by total requests (descending)
+  powerUsers.sort((a, b) => b.totalRequests - a.totalRequests);
+  
+  // Calculate total power user requests
+  const totalPowerUserRequests = powerUsers.reduce((sum, user) => sum + user.totalRequests, 0);
+  
+  // Get model usage summary for power users
+  const powerUserModelSummary = getModelUsageSummary(powerUserData);
+  
+  return {
+    powerUsers,
+    totalPowerUsers: powerUsers.length,
+    totalPowerUserRequests,
+    powerUserModelSummary
+  };
+}
+
+export function getPowerUserDailyData(powerUsers: PowerUserData[]): Array<{
+  date: string;
+  requests: number;
+}> {
+  const dailyTotals: Record<string, number> = {};
+  
+  powerUsers.forEach(user => {
+    user.dailyActivity.forEach(day => {
+      dailyTotals[day.date] = (dailyTotals[day.date] || 0) + day.requests;
+    });
+  });
+  
+  return Object.entries(dailyTotals)
+    .map(([date, requests]) => ({ date, requests }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}

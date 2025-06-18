@@ -10,15 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { 
   AggregatedData, 
   CopilotUsageData, 
   ModelUsageSummary,
   DailyModelData,
+  PowerUserSummary,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
-  getDailyModelData
+  getDailyModelData,
+  getPowerUsers,
+  getPowerUserDailyData
 } from "@/lib/utils";
 
 function App() {
@@ -27,6 +31,7 @@ function App() {
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
   const [modelSummary, setModelSummary] = useState<ModelUsageSummary[]>([]);
   const [dailyModelData, setDailyModelData] = useState<DailyModelData[]>([]);
+  const [powerUserSummary, setPowerUserSummary] = useState<PowerUserSummary | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -79,6 +84,10 @@ function App() {
         const dailyData = getDailyModelData(parsedData);
         setDailyModelData(dailyData);
         
+        // Get power users data
+        const powerUsers = getPowerUsers(parsedData);
+        setPowerUserSummary(powerUsers);
+        
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
         // Provide user-friendly error messages  
@@ -115,6 +124,7 @@ function App() {
         setAggregatedData([]);
         setModelSummary([]);
         setDailyModelData([]);
+        setPowerUserSummary(null);
       }
     };
     
@@ -344,6 +354,138 @@ function App() {
                         {uniqueModels.length}
                       </span>
                     </div>
+                    {powerUserSummary && (
+                      <Sheet>
+                        <SheetTrigger asChild>
+                          <Button variant="outline" className="flex items-center gap-2">
+                            <span className="text-sm">Power Users:</span>
+                            <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent className="w-[600px] sm:w-[800px] overflow-y-auto">
+                          <SheetHeader>
+                            <SheetTitle>Power Users Analysis</SheetTitle>
+                          </SheetHeader>
+                          <div className="mt-6 space-y-6">
+                            {/* Power User Summary */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              <Card className="p-4">
+                                <h3 className="text-md font-medium mb-3">Total Requests by Power Users</h3>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Total Requests:</span>
+                                    <span className="font-bold">
+                                      {powerUserSummary.totalPowerUserRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Power Users Count:</span>
+                                    <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
+                                  </div>
+                                </div>
+                              </Card>
+                              
+                              <Card className="p-4">
+                                <h3 className="text-md font-medium mb-3">Requests per Model</h3>
+                                <div className="overflow-auto max-h-40">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Model</TableHead>
+                                        <TableHead className="text-right">Requests</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {powerUserSummary.powerUserModelSummary.map((item) => (
+                                        <TableRow key={item.model}>
+                                          <TableCell className="font-medium">{item.model}</TableCell>
+                                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </Card>
+                            </div>
+                            
+                            {/* Power User Activity Chart */}
+                            <Card className="p-4">
+                              <h3 className="text-md font-medium mb-3">Power User Activity Over Time</h3>
+                              <div className="h-[300px]">
+                                <ChartContainer 
+                                  config={{
+                                    requests: { color: "#3b82f6" },
+                                  }}
+                                  className="h-full w-full"
+                                >
+                                  <LineChart data={getPowerUserDailyData(powerUserSummary.powerUsers)}>
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                    <XAxis 
+                                      dataKey="date" 
+                                      tick={{ fill: 'var(--foreground)' }}
+                                      tickLine={{ stroke: 'var(--border)' }} 
+                                    />
+                                    <YAxis 
+                                      tick={{ fill: 'var(--foreground)' }}
+                                      tickLine={{ stroke: 'var(--border)' }} 
+                                    />
+                                    <ChartTooltip
+                                      content={({ active, payload, label }) => {
+                                        if (active && payload && payload.length) {
+                                          return (
+                                            <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                              <div className="font-medium mb-2">{label}</div>
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+                                                <span>Requests: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="requests"
+                                      name="Requests"
+                                      stroke="#3b82f6" 
+                                      strokeWidth={2}
+                                      activeDot={{ r: 6 }}
+                                    />
+                                  </LineChart>
+                                </ChartContainer>
+                              </div>
+                            </Card>
+                            
+                            {/* Individual Power Users List */}
+                            <Card className="p-4">
+                              <h3 className="text-md font-medium mb-3">Individual Power Users</h3>
+                              <div className="overflow-auto max-h-60">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>User</TableHead>
+                                      <TableHead className="text-right">Total Requests</TableHead>
+                                      <TableHead className="text-right">Models Used</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {powerUserSummary.powerUsers.map((user) => (
+                                      <TableRow key={user.user}>
+                                        <TableCell className="font-medium">{user.user}</TableCell>
+                                        <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                                        <TableCell className="text-right">{Object.keys(user.requestsByModel).length}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </Card>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    )}
                   </div>
                 </div>
               </Card>
