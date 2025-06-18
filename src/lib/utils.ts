@@ -32,16 +32,20 @@ export function parseCSV(csv: string): CopilotUsageData[] {
   const expectedHeaders = ['Timestamp', 'User', 'Model', 'Requests Used', 'Exceeds Monthly Quota', 'Total Monthly Quota'];
   
   // Parse header row to check for expected columns
-  const headerMatches = headerLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
+  // First, trim any trailing whitespace from the header line
+  const trimmedHeaderLine = headerLine.trim();
+  const headerMatches = trimmedHeaderLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
   if (!headerMatches || headerMatches.length < 6) {
     throw new Error('CSV header must contain at least 6 columns');
   }
   
-  const headers = headerMatches.map(m => 
-    m.endsWith(',') 
-      ? m.slice(0, -1).replace(/^"(.*)"$/, '$1') 
-      : m.replace(/^"(.*)"$/, '$1')
-  ).filter(h => h.trim() !== '').map(h => h.trim()); // Filter empty strings and trim whitespace
+  const headers = headerMatches.map(m => {
+    // Remove trailing comma if present
+    let processed = m.endsWith(',') ? m.slice(0, -1) : m;
+    // Remove surrounding quotes if present
+    processed = processed.replace(/^"(.*)"$/, '$1');
+    return processed;
+  }).filter(h => h.trim() !== '').map(h => h.trim()); // Filter empty strings and trim whitespace
   
   // Check if all expected headers are present (case-insensitive exact match)
   const missingHeaders = expectedHeaders.filter(expected => 
@@ -71,18 +75,21 @@ export function parseCSV(csv: string): CopilotUsageData[] {
   
   // Skip the header row and process data rows
   return lines.slice(1).map((line, index) => {
-    // Handle quoted CSV properly
-    const matches = line.match(/("([^"]*)"|([^,]*))(,|$)/g);
+    // Handle quoted CSV properly - trim any trailing whitespace first
+    const trimmedLine = line.trim();
+    const matches = trimmedLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
     
     if (!matches || matches.length < 6) {
       throw new Error(`Invalid CSV row format at line ${index + 2}: expected 6 columns, got ${matches ? matches.length : 0}`);
     }
     
-    const values = matches.map(m => 
-      m.endsWith(',') 
-        ? m.slice(0, -1).replace(/^"(.*)"$/, '$1') 
-        : m.replace(/^"(.*)"$/, '$1')
-    );
+    const values = matches.map(m => {
+      // Remove trailing comma if present
+      let processed = m.endsWith(',') ? m.slice(0, -1) : m;
+      // Remove surrounding quotes if present
+      processed = processed.replace(/^"(.*)"$/, '$1');
+      return processed;
+    }).filter(v => v.trim() !== ''); // Filter out empty values
     
     // Validate timestamp
     const timestamp = new Date(values[0]);
