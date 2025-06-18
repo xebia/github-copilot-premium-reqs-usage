@@ -81,10 +81,13 @@ function App() {
         
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
-        console.error("Error parsing CSV:", error);
+        // Provide user-friendly error messages  
         let errorMessage = "Failed to parse CSV file. Please check the format.";
         
         if (error instanceof Error) {
+          // Log detailed error information to console for debugging
+          console.error("CSV parsing error details:", error);
+          
           // Provide more specific error messages based on the error type
           if (error.message.includes("missing required columns")) {
             errorMessage = "Invalid CSV format: " + error.message;

@@ -68,6 +68,24 @@ user1,2024-01-01T00:00:00Z,gpt-4,100,1.5,false`
     expect(() => parseCSV(csvMixedCase)).not.toThrow()
   })
 
+  it('should handle CSV with whitespace in headers', () => {
+    const csvWithWhitespace = `" Timestamp "," User "," Model "," Requests Used "," Exceeds Monthly Quota "," Total Monthly Quota "
+2024-01-01T00:00:00Z,user1,gpt-4,1.5,false,100`
+
+    expect(() => parseCSV(csvWithWhitespace)).not.toThrow()
+    
+    const result = parseCSV(csvWithWhitespace)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({
+      timestamp: new Date('2024-01-01T00:00:00Z'),
+      user: 'user1',
+      model: 'gpt-4',
+      requestsUsed: 1.5,
+      exceedsQuota: false,
+      totalMonthlyQuota: '100'
+    })
+  })
+
   it('should validate data types correctly with valid headers', () => {
     const validCsv = `"Timestamp","User","Model","Requests Used","Exceeds Monthly Quota","Total Monthly Quota"
 2024-01-01T00:00:00Z,user1,gpt-4,1.5,false,100`

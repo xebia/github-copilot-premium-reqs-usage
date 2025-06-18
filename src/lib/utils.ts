@@ -41,12 +41,29 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     m.endsWith(',') 
       ? m.slice(0, -1).replace(/^"(.*)"$/, '$1') 
       : m.replace(/^"(.*)"$/, '$1')
-  );
+  ).filter(h => h.trim() !== '').map(h => h.trim()); // Filter empty strings and trim whitespace
   
   // Check if all expected headers are present (case-insensitive exact match)
   const missingHeaders = expectedHeaders.filter(expected => 
     !headers.some(header => header.toLowerCase() === expected.toLowerCase())
   );
+  
+  // Log detailed header information for debugging
+  if (missingHeaders.length > 0) {
+    console.log('CSV Header validation failed:');
+    console.log('Expected headers:', expectedHeaders);
+    console.log('Found headers:', headers);
+    console.log('Missing headers:', missingHeaders);
+    headers.forEach((header, i) => {
+      const expectedHeader = expectedHeaders[i];
+      if (expectedHeader) {
+        const matches = header.toLowerCase() === expectedHeader.toLowerCase();
+        console.log(`  Column ${i + 1}: "${header}" ${matches ? '✅' : '❌'} (expected: "${expectedHeader}")`);
+      } else {
+        console.log(`  Column ${i + 1}: "${header}" (extra column)`);
+      }
+    });
+  }
   
   if (missingHeaders.length > 0) {
     throw new Error(`CSV is missing required columns: ${missingHeaders.join(', ')}. Expected columns: ${expectedHeaders.join(', ')}`);
