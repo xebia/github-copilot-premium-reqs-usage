@@ -43,9 +43,9 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       : m.replace(/^"(.*)"$/, '$1')
   );
   
-  // Check if all expected headers are present (case-insensitive)
+  // Check if all expected headers are present (case-insensitive exact match)
   const missingHeaders = expectedHeaders.filter(expected => 
-    !headers.some(header => header.toLowerCase().includes(expected.toLowerCase()))
+    !headers.some(header => header.toLowerCase() === expected.toLowerCase())
   );
   
   if (missingHeaders.length > 0) {

@@ -100,4 +100,14 @@ user1,2024-01-01T00:00:00Z,gpt-4,100,1.5,false`
       totalMonthlyQuota: '50'
     })
   })
+
+  it('should reject CSV with headers that contain required words but are not exact matches', () => {
+    // This test ensures exact header matching, not substring matching
+    const csvWithSimilarHeaders = `"Event Timestamp","System User","Model Type","Total Requests Used","User Exceeds Monthly Quota","Total Monthly Quota Limit"
+2024-01-01T00:00:00Z,user1,gpt-4,1.5,false,100`
+
+    expect(() => parseCSV(csvWithSimilarHeaders)).toThrow(
+      'CSV is missing required columns: Timestamp, User, Model, Requests Used, Exceeds Monthly Quota, Total Monthly Quota'
+    )
+  })
 })
