@@ -1,0 +1,82 @@
+name: ✨ Feature Request (Coding Agent)
+description: Suggest a new feature for the Coding Agent to implement
+title: "[Feature]: "
+labels: ["enhancement", "coding-agent"]
+assignees:
+  - copilot
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! This will be automatically assigned to the Coding Agent (@copilot) for implementation.
+        
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: Describe the feature...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem-solution
+    attributes:
+      label: Problem and Solution
+      description: What problem does this feature solve? How should it work?
+      placeholder: |
+        **Problem**: What issue are you trying to solve?
+        **Solution**: How should this feature work?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe how you or others would use this feature
+      placeholder: Describe the use case...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or features?
+      placeholder: What alternatives have you considered?
+    validations:
+      required: false
+      
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups/Examples
+      description: Add any mockups, wireframes, or examples that illustrate the feature
+      placeholder: Drag and drop or paste images here...
+    validations:
+      required: false
+      
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Expected Complexity
+      description: How complex do you think this feature might be to implement?
+      options:
+        - Simple
+        - Medium
+        - Complex
+        - Very Complex
+        - Not sure
+      default: 4
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context or information about the feature request
+      placeholder: Any additional information...
+    validations:
+      required: false
