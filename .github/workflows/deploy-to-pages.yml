@@ -3,23 +3,6 @@ name: Deploy to GitHub Pages
 on:
   # Runs on pushes to any branch to validate build (only when code changes)
   push:
-    paths:
-      - 'src/**'
-      - 'index.html'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'vite.config.js'
-      - 'vite.github-pages.config.ts'
-      - 'vitest.config.ts'
-      - 'tsconfig.json'
-      - 'tailwind.config.js'
-      - 'components.json'
-      - 'build-for-gh-pages.sh'
-      - 'build-for-pages.sh'
-      - 'deploy-to-pages.sh'
-      - 'deploy.sh'
-      - '.github/workflows/**'
     paths-ignore:
       - '**.md'
       - 'LICENSE'
@@ -27,23 +10,6 @@ on:
   
   # Runs on pull requests to validate build (only when code changes)
   pull_request:
-    paths:
-      - 'src/**'
-      - 'index.html'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'vite.config.js'
-      - 'vite.github-pages.config.ts'
-      - 'vitest.config.ts'
-      - 'tsconfig.json'
-      - 'tailwind.config.js'
-      - 'components.json'
-      - 'build-for-gh-pages.sh'
-      - 'build-for-pages.sh'
-      - 'deploy-to-pages.sh'
-      - 'deploy.sh'
-      - '.github/workflows/**'
     paths-ignore:
       - '**.md'
       - 'LICENSE'
