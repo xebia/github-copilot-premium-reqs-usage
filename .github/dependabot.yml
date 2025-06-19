@@ -4,8 +4,16 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "devcontainers"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      devcontainer-dependencies:
+        patterns:
+          - "*"
