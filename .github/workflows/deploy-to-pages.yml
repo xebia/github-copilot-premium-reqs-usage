@@ -1,11 +1,19 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Runs on pushes to any branch to validate build
+  # Runs on pushes to any branch to validate build (only when code changes)
   push:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
   
-  # Runs on pull requests to validate build  
+  # Runs on pull requests to validate build (only when code changes)
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
   
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
