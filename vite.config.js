@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import tailwindcss from "@tailwindcss/vite";
 import react from '@vitejs/plugin-react-swc';
 import { resolve } from 'path';
 
@@ -25,7 +26,7 @@ const getBasePath = () => {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   base: getBasePath(),
   build: {
     outDir: 'dist',

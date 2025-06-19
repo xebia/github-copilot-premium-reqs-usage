@@ -70,3 +70,81 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      
+      - name: Smoke Test - Check CSV Upload Button
+        run: |
+          echo "Running smoke test on deployed site..."
+          SITE_URL="${{ steps.deployment.outputs.page_url }}"
+          echo "Testing URL: $SITE_URL"
+          
+          # Wait a bit for deployment to be fully available
+          sleep 30
+          
+          # First, check if the site is accessible and returns the expected HTML structure
+          echo "Checking if site is accessible..."
+          RESPONSE=$(curl -fsSL "$SITE_URL" || exit 1)
+          
+          # Check if the HTML contains the root div where React will mount
+          if echo "$RESPONSE" | grep -q '<div id="root"></div>'; then
+            echo "✅ Basic HTML structure found"
+          else
+            echo "❌ Basic HTML structure missing"
+            exit 1
+          fi
+          
+          # Check if JavaScript bundle is referenced
+          if echo "$RESPONSE" | grep -q 'type="module".*\.js'; then
+            echo "✅ JavaScript bundle reference found"
+          else
+            echo "❌ JavaScript bundle reference missing"
+            exit 1
+          fi
+          
+          # Check if CSS is referenced
+          if echo "$RESPONSE" | grep -q 'rel="stylesheet".*\.css'; then
+            echo "✅ CSS stylesheet reference found"
+          else
+            echo "❌ CSS stylesheet reference missing"
+            exit 1
+          fi
+          
+          # Test if the JavaScript bundle is accessible and contains the CSV upload button text
+          JS_URL=$(echo "$RESPONSE" | grep -o 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | head -1)
+          if [[ "$JS_URL" == ./* ]]; then
+            JS_URL="${SITE_URL%/}/${JS_URL#./}"
+          fi
+          
+          echo "Testing JavaScript bundle at: $JS_URL"
+          JS_CONTENT=$(curl -fsSL "$JS_URL" || exit 1)
+          
+          if echo "$JS_CONTENT" | head -c 1000 | grep -q "function\|const\|var\|class"; then
+            echo "✅ JavaScript bundle is accessible and contains expected code"
+          else
+            echo "❌ JavaScript bundle is not accessible or doesn't contain expected code"
+            exit 1
+          fi
+          
+          # Check if the JavaScript bundle contains the CSV upload button text
+          if echo "$JS_CONTENT" | grep -q "Select CSV File"; then
+            echo "✅ CSV upload button text found in JavaScript bundle"
+          else
+            echo "❌ CSV upload button text not found in JavaScript bundle"
+            echo "This indicates the core CSV upload functionality is missing from the build"
+            exit 1
+          fi
+          
+          # Test if the CSS bundle is accessible
+          CSS_URL=$(echo "$RESPONSE" | grep -o 'href="[^"]*\.css"' | sed 's/href="//;s/"//' | head -1)
+          if [[ "$CSS_URL" == ./* ]]; then
+            CSS_URL="${SITE_URL%/}/${CSS_URL#./}"
+          fi
+          
+          echo "Testing CSS bundle at: $CSS_URL"
+          if curl -fsSL "$CSS_URL" | head -c 500 | grep -q "body\|html\|\."; then
+            echo "✅ CSS bundle is accessible and contains expected styles"
+          else
+            echo "❌ CSS bundle is not accessible or doesn't contain expected styles"
+            exit 1
+          fi
+          
+          echo "✅ Smoke test passed: All essential resources are accessible and CSV upload functionality is present"
