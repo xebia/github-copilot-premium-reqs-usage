@@ -140,7 +140,8 @@ jobs:
           fi
           
           echo "Testing CSS bundle at: $CSS_URL"
-          if curl -fsSL "$CSS_URL" | head -c 500 | grep -q "body\|html\|\."; then
+          CSS_CONTENT=$(curl -fsSL "$CSS_URL" | head -c 500 || true)
+          if echo "$CSS_CONTENT" | grep -q "body\|html\|\."; then
             echo "✅ CSS bundle is accessible and contains expected styles"
           else
             echo "❌ CSS bundle is not accessible or doesn't contain expected styles"
