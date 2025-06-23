@@ -184,9 +184,9 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
         compliantRequests: 0,
         exceedingRequests: 0,
         multiplier,
-        individualPlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL] / multiplier),
-        businessPlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS] / multiplier),
-        enterprisePlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE] / multiplier),
+        individualPlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL] / multiplier),
+        businessPlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS] / multiplier),
+        enterprisePlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE] / multiplier),
         excessCost: 0
       };
     }
@@ -217,6 +217,14 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
       groupedSummary[key].totalRequests += item.totalRequests;
       groupedSummary[key].compliantRequests += item.compliantRequests;
       groupedSummary[key].exceedingRequests += item.exceedingRequests;
+    }
+    
+    // For grouped default models, ensure multiplier is 0 and limits are set correctly
+    if (key === 'Default') {
+      groupedSummary[key].multiplier = 0;
+      groupedSummary[key].individualPlanLimit = Infinity;
+      groupedSummary[key].businessPlanLimit = Infinity;
+      groupedSummary[key].enterprisePlanLimit = Infinity;
     }
     
     // Calculate excess cost
@@ -281,21 +289,38 @@ export const COPILOT_PLANS = {
 } as const;
 
 export const PLAN_MONTHLY_LIMITS = {
-  [COPILOT_PLANS.INDIVIDUAL]: 150,
-  [COPILOT_PLANS.BUSINESS]: 500,
-  [COPILOT_PLANS.ENTERPRISE]: 500
+  [COPILOT_PLANS.INDIVIDUAL]: 50,
+  [COPILOT_PLANS.BUSINESS]: 300,
+  [COPILOT_PLANS.ENTERPRISE]: 1000
 } as const;
 
-// Model multipliers based on GitHub documentation
+// Model multipliers based on GitHub documentation (for paid plans)
 export const MODEL_MULTIPLIERS: Record<string, number> = {
-  // Default models (1x multiplier)
-  'gpt-4o-2024-11-20': 1,
-  'gpt-4.1-2025-04-14': 1,
+  // Default models (0x multiplier for paid plans)
+  'gpt-4o-2024-11-20': 0,
+  'gpt-4.1-2025-04-14': 0,
+  'gpt-4o': 0,
+  'gpt-4.1': 0,
+  // GPT-4.5 models
+  'gpt-4.5': 50,
   // Vision models
-  'gpt-4.1-vision': 1,
-  // O-series models (higher multipliers)
-  'o3-mini-2025-01-31': 1,
-  'o4-mini-2025-04-16': 1,
+  'gpt-4.1-vision': 0,
+  // Claude models
+  'claude-sonnet-3.5': 1,
+  'claude-sonnet-3.7': 1,
+  'claude-sonnet-3.7-thinking': 1.25,
+  'claude-sonnet-4': 1,
+  'claude-opus-4': 10,
+  // Gemini models
+  'gemini-2.0-flash': 0.25,
+  'gemini-2.5-pro': 1,
+  // O-series models
+  'o1': 10,
+  'o3': 1,
+  'o3-mini': 0.33,
+  'o3-mini-2025-01-31': 0.33,
+  'o4-mini': 0.33,
+  'o4-mini-2025-04-16': 0.33,
   // Add other models as needed - fallback to 1x for unknown models
 };
 
@@ -303,7 +328,7 @@ export const MODEL_MULTIPLIERS: Record<string, number> = {
 export const DEFAULT_MODELS = ['gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
 
 // Cost per excess request (in USD) for premium requests
-export const EXCESS_REQUEST_COST = 0.15; // $0.15 per excess request
+export const EXCESS_REQUEST_COST = 0.04; // $0.04 per excess request
 
 export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
   // First, aggregate total requests per user
