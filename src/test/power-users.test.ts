@@ -56,20 +56,20 @@ describe('Power Users Functionality', () => {
   it('should identify power users correctly', () => {
     const result = getPowerUsers(mockData);
     
-    expect(result.totalPowerUsers).toBe(2);
-    expect(result.powerUsers).toHaveLength(2);
+    // With 4 users total, top 10% = Math.ceil(4 * 0.1) = 1 user
+    expect(result.totalPowerUsers).toBe(1);
+    expect(result.powerUsers).toHaveLength(1);
     
-    // Should be sorted by total requests (descending)
+    // Should be sorted by total requests (descending) - only the top user
     expect(result.powerUsers[0].user).toBe('power-user-1');
     expect(result.powerUsers[0].totalRequests).toBe(35); // 15 + 8 + 12
-    expect(result.powerUsers[1].user).toBe('power-user-2');
-    expect(result.powerUsers[1].totalRequests).toBe(20);
   });
 
   it('should calculate total power user requests correctly', () => {
     const result = getPowerUsers(mockData);
     
-    expect(result.totalPowerUserRequests).toBe(55); // 35 + 20
+    // Only power-user-1 is a power user now
+    expect(result.totalPowerUserRequests).toBe(35); // Only power-user-1
   });
 
   it('should aggregate requests by model for power users', () => {
@@ -81,10 +81,9 @@ describe('Power Users Functionality', () => {
       'gpt-3.5': 8
     });
     
+    // power-user-2 is no longer a power user (only top 10% = 1 user)
     const powerUser2 = result.powerUsers.find(u => u.user === 'power-user-2');
-    expect(powerUser2?.requestsByModel).toEqual({
-      'claude': 20
-    });
+    expect(powerUser2).toBeUndefined();
   });
 
   it('should calculate daily activity for power users', () => {
@@ -100,19 +99,21 @@ describe('Power Users Functionality', () => {
   it('should create model usage summary for power users only', () => {
     const result = getPowerUsers(mockData);
     
-    expect(result.powerUserModelSummary).toHaveLength(3);
+    // Only power-user-1 is a power user, so only models they used should be included
+    expect(result.powerUserModelSummary).toHaveLength(2);
     
-    // Should include models used by power users
+    // Should include models used by power users (only power-user-1)
     const gpt4Summary = result.powerUserModelSummary.find(m => m.model === 'gpt-4');
     expect(gpt4Summary?.totalRequests).toBe(27);
     expect(gpt4Summary?.compliantRequests).toBe(15);
     expect(gpt4Summary?.exceedingRequests).toBe(12);
     
-    const claudeSummary = result.powerUserModelSummary.find(m => m.model === 'claude');
-    expect(claudeSummary?.totalRequests).toBe(20);
-    
     const gpt35Summary = result.powerUserModelSummary.find(m => m.model === 'gpt-3.5');
     expect(gpt35Summary?.totalRequests).toBe(8);
+    
+    // claude should not be included since power-user-2 is not a power user anymore
+    const claudeSummary = result.powerUserModelSummary.find(m => m.model === 'claude');
+    expect(claudeSummary).toBeUndefined();
   });
 
   it('should handle case with no power users', () => {
@@ -137,38 +138,42 @@ describe('Power Users Functionality', () => {
 
     const result = getPowerUsers(lowUsageData);
     
-    expect(result.totalPowerUsers).toBe(0);
-    expect(result.powerUsers).toHaveLength(0);
-    expect(result.totalPowerUserRequests).toBe(0);
-    expect(result.powerUserModelSummary).toHaveLength(0);
+    // With 2 users, top 10% = Math.ceil(2 * 0.1) = 1 user, so user-1 will be the power user
+    expect(result.totalPowerUsers).toBe(1);
+    expect(result.powerUsers).toHaveLength(1);
+    expect(result.powerUsers[0].user).toBe('user-1'); // user with highest requests (5)
+    expect(result.totalPowerUserRequests).toBe(5);
+    expect(result.powerUserModelSummary).toHaveLength(1);
   });
 
   it('should generate daily data aggregated across all power users', () => {
     const result = getPowerUsers(mockData);
     const dailyData = getPowerUserDailyData(result.powerUsers);
     
+    // Only power-user-1 is a power user now
     expect(dailyData).toEqual([
-      { date: '2025-01-01', requests: 43 }, // power-user-1: 23 + power-user-2: 20
-      { date: '2025-01-02', requests: 12 }  // power-user-1: 12
+      { date: '2025-01-01', requests: 23 }, // power-user-1 only: 23
+      { date: '2025-01-02', requests: 12 }  // power-user-1 only: 12
     ]);
   });
 
-  it('should use correct power user threshold', () => {
-    expect(POWER_USER_THRESHOLD).toBe(10);
+  it('should use top 10% logic for power users', () => {
+    expect(POWER_USER_THRESHOLD).toBe(10); // Still kept for backward compatibility
     
-    // Test with user exactly at threshold
-    const thresholdData: CopilotUsageData[] = [
+    // Test with single user - should always have 1 power user
+    const singleUserData: CopilotUsageData[] = [
       {
         timestamp: new Date('2025-01-01T10:00:00Z'),
-        user: 'threshold-user',
+        user: 'only-user',
         model: 'gpt-4',
-        requestsUsed: 10,
+        requestsUsed: 1,
         exceedsQuota: false,
         totalMonthlyQuota: '100'
       }
     ];
     
-    const result = getPowerUsers(thresholdData);
-    expect(result.totalPowerUsers).toBe(0); // Should not be a power user (needs > threshold)
+    const result = getPowerUsers(singleUserData);
+    expect(result.totalPowerUsers).toBe(1); // Should have 1 power user (top 10% of 1 user = 1)
+    expect(result.powerUsers[0].user).toBe('only-user');
   });
 });
