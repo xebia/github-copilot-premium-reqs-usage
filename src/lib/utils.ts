@@ -184,9 +184,9 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
         compliantRequests: 0,
         exceedingRequests: 0,
         multiplier,
-        individualPlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL] / multiplier),
-        businessPlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS] / multiplier),
-        enterprisePlanLimit: multiplier === 0 ? Infinity : Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE] / multiplier),
+        individualPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL],
+        businessPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS],
+        enterprisePlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE],
         excessCost: 0
       };
     }
@@ -219,12 +219,12 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
       groupedSummary[key].exceedingRequests += item.exceedingRequests;
     }
     
-    // For grouped default models, ensure multiplier is 0 and limits are set correctly
+    // For grouped default models, ensure multiplier is 0 and limits use constant values
     if (key === 'Default') {
       groupedSummary[key].multiplier = 0;
-      groupedSummary[key].individualPlanLimit = Infinity;
-      groupedSummary[key].businessPlanLimit = Infinity;
-      groupedSummary[key].enterprisePlanLimit = Infinity;
+      groupedSummary[key].individualPlanLimit = PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL];
+      groupedSummary[key].businessPlanLimit = PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+      groupedSummary[key].enterprisePlanLimit = PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE];
     }
     
     // Calculate excess cost

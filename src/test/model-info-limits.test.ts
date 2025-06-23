@@ -53,9 +53,9 @@ describe('Model Info and Limits Feature', () => {
     
     if (defaultGroup) {
       expect(defaultGroup.multiplier).toBe(0);
-      expect(defaultGroup.individualPlanLimit).toBe(Infinity); // 0x multiplier = unlimited
-      expect(defaultGroup.businessPlanLimit).toBe(Infinity); // 0x multiplier = unlimited
-      expect(defaultGroup.enterprisePlanLimit).toBe(Infinity); // 0x multiplier = unlimited
+      expect(defaultGroup.individualPlanLimit).toBe(50); // Constant plan limit, not Infinity
+      expect(defaultGroup.businessPlanLimit).toBe(300); // Constant plan limit, not Infinity
+      expect(defaultGroup.enterprisePlanLimit).toBe(1000); // Constant plan limit, not Infinity
     }
   });
 

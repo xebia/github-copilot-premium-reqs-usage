@@ -287,8 +287,8 @@ function App() {
         limit = item.businessPlanLimit;
     }
     
-    // Handle infinity (unlimited) for 0x multiplier models
-    return limit === Infinity ? "Unlimited" : limit.toLocaleString();
+    // For 0x multiplier models, show "Unlimited" despite having constant plan limits
+    return item.multiplier === 0 ? "Unlimited" : limit.toLocaleString();
   }, [selectedPlan]);
 
   return (
