@@ -122,9 +122,15 @@ export function parseCSV(csv: string): CopilotUsageData[] {
 
 export interface ModelUsageSummary {
   model: string;
+  displayName: string; // For grouping default models
   totalRequests: number;
   compliantRequests: number;
   exceedingRequests: number;
+  multiplier: number;
+  individualPlanLimit: number;
+  businessPlanLimit: number;
+  enterprisePlanLimit: number;
+  excessCost: number; // Cost for exceeding requests
 }
 
 export interface DailyModelData {
@@ -168,11 +174,20 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
   
   data.forEach(item => {
     if (!summary[item.model]) {
+      const multiplier = MODEL_MULTIPLIERS[item.model] || 1;
+      const displayName = DEFAULT_MODELS.includes(item.model) ? 'Default' : item.model;
+      
       summary[item.model] = {
         model: item.model,
+        displayName,
         totalRequests: 0,
         compliantRequests: 0,
-        exceedingRequests: 0
+        exceedingRequests: 0,
+        multiplier,
+        individualPlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL] / multiplier),
+        businessPlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS] / multiplier),
+        enterprisePlanLimit: Math.floor(PLAN_MONTHLY_LIMITS[COPILOT_PLANS.ENTERPRISE] / multiplier),
+        excessCost: 0
       };
     }
     
@@ -185,8 +200,31 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
   });
   
+  // Calculate excess costs and group default models
+  const summaryArray = Object.values(summary);
+  const groupedSummary: Record<string, ModelUsageSummary> = {};
+  
+  summaryArray.forEach(item => {
+    const key = item.displayName;
+    
+    if (!groupedSummary[key]) {
+      groupedSummary[key] = {
+        ...item,
+        model: key === 'Default' ? 'Default (GPT-4o, GPT-4.1)' : item.model
+      };
+    } else {
+      // Merge default models
+      groupedSummary[key].totalRequests += item.totalRequests;
+      groupedSummary[key].compliantRequests += item.compliantRequests;
+      groupedSummary[key].exceedingRequests += item.exceedingRequests;
+    }
+    
+    // Calculate excess cost
+    groupedSummary[key].excessCost = groupedSummary[key].exceedingRequests * groupedSummary[key].multiplier * EXCESS_REQUEST_COST;
+  });
+  
   // Convert to array and sort by total requests (descending)
-  return Object.values(summary).sort((a, b) => b.totalRequests - a.totalRequests);
+  return Object.values(groupedSummary).sort((a, b) => b.totalRequests - a.totalRequests);
 }
 
 export function getDailyModelData(data: CopilotUsageData[]): DailyModelData[] {
@@ -234,6 +272,38 @@ export interface PowerUserSummary {
 
 // Define power user threshold - users with more than 10 requests
 export const POWER_USER_THRESHOLD = 10;
+
+// Copilot plan constants
+export const COPILOT_PLANS = {
+  INDIVIDUAL: 'Individual',
+  BUSINESS: 'Business', 
+  ENTERPRISE: 'Enterprise'
+} as const;
+
+export const PLAN_MONTHLY_LIMITS = {
+  [COPILOT_PLANS.INDIVIDUAL]: 150,
+  [COPILOT_PLANS.BUSINESS]: 500,
+  [COPILOT_PLANS.ENTERPRISE]: 500
+} as const;
+
+// Model multipliers based on GitHub documentation
+export const MODEL_MULTIPLIERS: Record<string, number> = {
+  // Default models (1x multiplier)
+  'gpt-4o-2024-11-20': 1,
+  'gpt-4.1-2025-04-14': 1,
+  // Vision models
+  'gpt-4.1-vision': 1,
+  // O-series models (higher multipliers)
+  'o3-mini-2025-01-31': 1,
+  'o4-mini-2025-04-16': 1,
+  // Add other models as needed - fallback to 1x for unknown models
+};
+
+// Default models that should be grouped
+export const DEFAULT_MODELS = ['gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+
+// Cost per excess request (in USD) for premium requests
+export const EXCESS_REQUEST_COST = 0.15; // $0.15 per excess request
 
 export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
   // First, aggregate total requests per user

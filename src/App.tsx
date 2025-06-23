@@ -492,7 +492,7 @@ function App() {
             </div>
             
             {/* Model Usage Table */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div className="mb-6">
               <Card className="p-5">
                 <h3 className="text-md font-medium mb-3">Requests per Model</h3>
                 <div className="overflow-auto max-h-60">
@@ -503,6 +503,10 @@ function App() {
                         <TableHead className="text-right">Total Requests</TableHead>
                         <TableHead className="text-right">Compliant</TableHead>
                         <TableHead className="text-right">Exceeding</TableHead>
+                        <TableHead className="text-right">Multiplier</TableHead>
+                        <TableHead className="text-right">Individual Limit</TableHead>
+                        <TableHead className="text-right">Business/Enterprise Limit</TableHead>
+                        <TableHead className="text-right">Excess Cost</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -512,13 +516,20 @@ function App() {
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.multiplier}x</TableCell>
+                          <TableCell className="text-right">{item.individualPlanLimit.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{item.businessPlanLimit.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">${item.excessCost.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
               </Card>
-              
+            </div>
+            
+            {/* Models List Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
               <Card className="p-5">
                 <h3 className="text-md font-medium mb-3">Models List</h3>
                 <div className="overflow-auto max-h-60">
