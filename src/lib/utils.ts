@@ -232,8 +232,7 @@ export interface PowerUserSummary {
   powerUserModelSummary: ModelUsageSummary[];
 }
 
-// Define power user threshold - users with more than 10 requests (kept for backward compatibility)
-export const POWER_USER_THRESHOLD = 10;
+
 
 export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
   // First, aggregate total requests per user

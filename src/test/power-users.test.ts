@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPowerUsers, getPowerUserDailyData, POWER_USER_THRESHOLD, CopilotUsageData } from '../lib/utils';
+import { getPowerUsers, getPowerUserDailyData, CopilotUsageData } from '../lib/utils';
 
 describe('Power Users Functionality', () => {
   const mockData: CopilotUsageData[] = [
@@ -158,8 +158,6 @@ describe('Power Users Functionality', () => {
   });
 
   it('should use top 10% logic for power users', () => {
-    expect(POWER_USER_THRESHOLD).toBe(10); // Still kept for backward compatibility
-    
     // Test with single user - should always have 1 power user
     const singleUserData: CopilotUsageData[] = [
       {
