@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   AggregatedData, 
   CopilotUsageData, 
@@ -357,12 +358,20 @@ function App() {
                     {powerUserSummary && (
                       <Sheet>
                         <SheetTrigger asChild>
-                          <Button variant="outline" className="flex items-center gap-2">
-                            <span className="text-sm">Power Users:</span>
-                            <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
-                          </Button>
+                          <UITooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" className="flex items-center gap-2">
+                                <span className="text-sm">Power Users:</span>
+                                <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Power users are the top 10% of users by request count.<br/>
+                              These users make the most requests to GitHub Copilot.</p>
+                            </TooltipContent>
+                          </UITooltip>
                         </SheetTrigger>
-                        <SheetContent className="w-[600px] sm:w-[800px] overflow-y-auto">
+                        <SheetContent className="w-[800px] sm:w-[1000px] lg:w-[1200px] overflow-y-auto">
                           <SheetHeader>
                             <SheetTitle>Power Users Analysis</SheetTitle>
                           </SheetHeader>
