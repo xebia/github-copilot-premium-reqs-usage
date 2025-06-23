@@ -492,7 +492,7 @@ function App() {
             </div>
             
             {/* Model Usage Table */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div className="mb-6">
               <Card className="p-5">
                 <h3 className="text-md font-medium mb-3">Requests per Model</h3>
                 <div className="overflow-auto max-h-60">
@@ -512,26 +512,6 @@ function App() {
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
-              
-              <Card className="p-5">
-                <h3 className="text-md font-medium mb-3">Models List</h3>
-                <div className="overflow-auto max-h-60">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Model Name</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {uniqueModels.map((model) => (
-                        <TableRow key={model}>
-                          <TableCell>{model}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
