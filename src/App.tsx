@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, DragEvent } from "react";
-import { Upload, GithubLogo } from "@phosphor-icons/react";
+import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -36,6 +36,7 @@ function App() {
   const [powerUserSummary, setPowerUserSummary] = useState<PowerUserSummary | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const processFile = useCallback((file: File) => {
@@ -47,9 +48,12 @@ function App() {
       return;
     }
     
+    setIsProcessing(true);
+    
     const reader = new FileReader();
     
     reader.onerror = () => {
+      setIsProcessing(false);
       toast.error("Failed to read the file. The file may be corrupted or unreadable.");
     };
     
@@ -91,6 +95,7 @@ function App() {
         const powerUsers = getPowerUsers(parsedData);
         setPowerUserSummary(powerUsers);
         
+        setIsProcessing(false);
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
         // Provide user-friendly error messages  
@@ -122,6 +127,7 @@ function App() {
           }
         }
         
+        setIsProcessing(false);
         toast.error(errorMessage);
         setData(null);
         setAggregatedData([]);
@@ -135,6 +141,8 @@ function App() {
   }, []);
   
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isProcessing) return;
+    
     const file = event.target.files?.[0];
     if (file) {
       processFile(file);
@@ -143,25 +151,29 @@ function App() {
     if (event.target) {
       event.target.value = '';
     }
-  }, [processFile]);
+  }, [processFile, isProcessing]);
   
   const handleButtonClick = () => {
+    if (isProcessing) return;
     fileInputRef.current?.click();
   };
   
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (isProcessing) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  }, []);
+  }, [isProcessing]);
   
   const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (isProcessing) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-  }, []);
+  }, [isProcessing]);
   
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (isProcessing) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -175,7 +187,7 @@ function App() {
         toast.error("Please upload a CSV file. Supported formats: .csv files or text files with CSV content.");
       }
     }
-  }, [processFile]);
+  }, [processFile, isProcessing]);
   
   // Generate chart data grouped by date with total compliant and exceeding requests
   const chartData = useCallback(() => {
@@ -320,24 +332,36 @@ function App() {
       {!(data && data.length > 0) && (
         <Card className="mb-8">
           <div 
-            className={`p-6 text-center ${isDragging ? 'bg-secondary/50' : ''} transition-colors duration-200`}
+            className={`p-6 text-center ${isDragging ? 'bg-secondary/50' : ''} ${isProcessing ? 'opacity-50 pointer-events-none' : ''} transition-colors duration-200`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
             <div className="mb-4">
-              <Upload size={48} weight="thin" className="mx-auto text-muted-foreground" />
+              {isProcessing ? (
+                <CircleNotch size={48} weight="thin" className="mx-auto text-muted-foreground animate-spin" />
+              ) : (
+                <Upload size={48} weight="thin" className="mx-auto text-muted-foreground" />
+              )}
             </div>
             
-            <h2 className="text-xl font-medium mb-2">Upload CSV File</h2>
+            <h2 className="text-xl font-medium mb-2">
+              {isProcessing ? "Processing CSV..." : "Upload CSV File"}
+            </h2>
             <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-              {isDragging 
-                ? "Drop your file here..." 
-                : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
+              {isProcessing 
+                ? "Please wait while we process your file..." 
+                : isDragging 
+                  ? "Drop your file here..." 
+                  : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
             </p>
             
-            <Button onClick={handleButtonClick} className="cursor-pointer">
-              Select CSV File
+            <Button 
+              onClick={handleButtonClick} 
+              className="cursor-pointer"
+              disabled={isProcessing}
+            >
+              {isProcessing ? "Processing..." : "Select CSV File"}
             </Button>
             <input
               ref={fileInputRef}
@@ -346,6 +370,7 @@ function App() {
               accept=".csv"
               onChange={handleFileUpload}
               className="hidden"
+              disabled={isProcessing}
             />
           </div>
         </Card>
@@ -586,7 +611,6 @@ function App() {
                   </Table>
                 </div>
               </Card>
-            </div>
           </div>
           
           <div>
