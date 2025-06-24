@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { XebiaLogo } from "@/components/ui/xebia-logo";
 import { 
   AggregatedData, 
   CopilotUsageData, 
@@ -261,15 +262,15 @@ function App() {
   const getModelColors = useCallback(() => {
     // Use a set of predefined colors that are visually distinct
     const colors = [
-      "#4285F4", // Blue
+      "#8B5CF6", // Purple (Xebia primary)
       "#EA4335", // Red
       "#FBBC05", // Yellow
       "#34A853", // Green
-      "#8E44AD", // Purple
+      "#A855F7", // Purple variant
       "#F39C12", // Orange
       "#16A085", // Teal
       "#E74C3C", // Red-Orange
-      "#3498DB", // Light Blue
+      "#7C3AED", // Purple variant
       "#1ABC9C"  // Turquoise
     ];
     
@@ -283,13 +284,16 @@ function App() {
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
       <header className="mb-8">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
-              GitHub Copilot Premium Requests Usage Analyzer
-            </h1>
-            <p className="text-muted-foreground">
-              Upload your Copilot usage CSV export to visualize request patterns
-            </p>
+          <div className="flex items-center gap-3">
+            <XebiaLogo className="w-8 h-8 text-purple-600" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+                GitHub Copilot Premium Requests Usage Analyzer
+              </h1>
+              <p className="text-muted-foreground">
+                Upload your Copilot usage CSV export to visualize request patterns
+              </p>
+            </div>
           </div>
           <Button variant="outline" size="sm" asChild>
             <a 
@@ -439,7 +443,7 @@ function App() {
                               <div className="h-[300px]">
                                 <ChartContainer 
                                   config={{
-                                    requests: { color: "#3b82f6" },
+                                    requests: { color: "#8B5CF6" },
                                   }}
                                   className="h-full w-full"
                                 >
@@ -461,7 +465,7 @@ function App() {
                                             <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                                               <div className="font-medium mb-2">{label}</div>
                                               <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
+                                                <div className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
                                                 <span>Requests: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</span>
                                               </div>
                                             </div>
@@ -474,7 +478,7 @@ function App() {
                                       type="monotone"
                                       dataKey="requests"
                                       name="Requests"
-                                      stroke="#3b82f6" 
+                                      stroke="#8B5CF6" 
                                       strokeWidth={2}
                                       activeDot={{ r: 6 }}
                                     />
