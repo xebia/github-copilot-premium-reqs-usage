@@ -28,3 +28,6 @@ dist-ssr
 **/agent-eval-report*
 packages
 .file-manifest
+
+# Build output logs
+build_output.txt
