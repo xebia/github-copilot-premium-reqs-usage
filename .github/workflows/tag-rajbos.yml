@@ -10,7 +10,7 @@ on:
 jobs:
   tag-rajbos:
     # Only run on the main repository, not on forks
-    if: github.repository == 'devops-actions/github-copilot-premium-reqs-usage'
+    if: github.repository == 'xebia/github-copilot-premium-reqs-usage'
     runs-on: ubuntu-latest
 
     permissions:
@@ -21,5 +21,5 @@ jobs:
       - name: Tag rajbos on new issue or PR
         uses: devops-actions/issue-comment-tag@v0.1.8
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           username: rajbos
