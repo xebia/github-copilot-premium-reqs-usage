@@ -285,7 +285,7 @@ function App() {
       <header className="mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <XebiaLogo className="w-8 h-8 text-purple-600" />
+            <XebiaLogo className="h-8 text-purple-600" />
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
                 GitHub Copilot Premium Requests Usage Analyzer
