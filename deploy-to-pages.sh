@@ -30,6 +30,10 @@ cat > temp-vite.config.ts <<EOF
 $(cat vite.config.ts | sed "s/build: {/build: {\n    base: '\/${REPO_NAME}\/',/")
 EOF
 
+# Set deploy time for build
+export DEPLOY_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "Setting deploy time: $DEPLOY_TIME"
+
 # Build with temporary config
 mv temp-vite.config.ts vite.config.ts
 npm run build
