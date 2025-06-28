@@ -232,8 +232,7 @@ export interface PowerUserSummary {
   powerUserModelSummary: ModelUsageSummary[];
 }
 
-// Define power user threshold - users with more than 10 requests
-export const POWER_USER_THRESHOLD = 10;
+
 
 export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
   // First, aggregate total requests per user
@@ -242,10 +241,16 @@ export function getPowerUsers(data: CopilotUsageData[]): PowerUserSummary {
     userTotals[item.user] = (userTotals[item.user] || 0) + item.requestsUsed;
   });
   
-  // Identify power users (users exceeding threshold)
-  const powerUserNames = Object.keys(userTotals).filter(
-    user => userTotals[user] > POWER_USER_THRESHOLD
+  // Get all users sorted by total requests (descending)
+  const allUsersSorted = Object.keys(userTotals).sort(
+    (a, b) => userTotals[b] - userTotals[a]
   );
+  
+  // Calculate top 10% of users (at least 1 user if any users exist)
+  const powerUserCount = Math.max(1, Math.ceil(allUsersSorted.length * 0.1));
+  
+  // Take the top 10% of users as power users
+  const powerUserNames = allUsersSorted.slice(0, powerUserCount);
   
   // Filter data to only power users
   const powerUserData = data.filter(item => powerUserNames.includes(item.user));
