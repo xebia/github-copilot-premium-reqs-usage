@@ -22,4 +22,4 @@ jobs:
         uses: devops-actions/issue-comment-tag@v0.1.8
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          username: rajbos
+          team: rajbos
