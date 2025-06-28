@@ -2,6 +2,12 @@
 
 set -e
 
+echo "Setting up node user home directory and permissions"
+sudo mkdir -p /home/node/.config/vscode-dev-containers
+sudo chown -R node:node /home/node
+sudo chmod 755 /home/node
+sudo chmod -R 755 /home/node/.config
+
 echo "Installing the GitHub CLI"
 (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
   && sudo mkdir -p -m 755 /etc/apt/keyrings \
