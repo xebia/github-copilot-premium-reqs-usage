@@ -4,6 +4,12 @@ set -e
 
 echo "Checking for updates to workbench-template from GitHub"
 
+# Ensure jq is installed for JSON parsing
+if ! command -v jq &> /dev/null; then
+    echo "Installing jq for JSON parsing..."
+    sudo apt-get update && sudo apt-get install -y jq
+fi
+
 WORKSPACE_DIR="/workspaces/spark-template"
 
 MARKER_DIR="/var/lib/spark/.versions"
