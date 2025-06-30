@@ -391,9 +391,9 @@ function App() {
                                 <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
                               </Button>
                             </SheetTrigger>
-                            <SheetContent className="w-[75%] overflow-y-auto">
+                            <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
                               <SheetHeader>
-                                <SheetTitle>Power Users Analysis</SheetTitle>
+                                <SheetTitle className="text-xl">Power Users Analysis</SheetTitle>
                               </SheetHeader>
                           <div className="mt-6 space-y-6">
                             {/* Power User Summary */}
