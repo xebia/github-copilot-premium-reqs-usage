@@ -12,6 +12,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
   AggregatedData, 
   CopilotUsageData, 
@@ -699,6 +700,7 @@ function App() {
         </div>
       )}
       <Toaster position="top-right" />
+      <DeploymentFooter />
     </div>
   );
 }
