@@ -12,11 +12,28 @@ TOOLS_MARKER_FILE="$MARKER_DIR/tools"
 
 sudo mkdir -p "$MARKER_DIR"
 
+# Check if TEMPLATE_PAT is set
+if [ -z "$TEMPLATE_PAT" ]; then
+    echo "TEMPLATE_PAT environment variable is not set. Skipping tools update."
+    exit 0
+fi
+
 # Fetch the latest release information
 LATEST_RELEASE=$(curl -s -H "Authorization: token $TEMPLATE_PAT" https://api.github.com/repos/github/spark-template/releases/latest)
 
+# Check if the API call succeeded
+if [ $? -ne 0 ] || [ -z "$LATEST_RELEASE" ]; then
+    echo "Failed to fetch release information from GitHub. Skipping tools update."
+    exit 0
+fi
+
 # Check if marker file exists and has the same release ID
 RELEASE_ID=$(echo "$LATEST_RELEASE" | jq -r '.id')
+if [ "$RELEASE_ID" == "null" ] || [ -z "$RELEASE_ID" ]; then
+    echo "Invalid release data received from GitHub. Skipping tools update."
+    exit 0
+fi
+
 if [ -f "$RELEASE_MARKER_FILE" ] && [ "$(cat "$RELEASE_MARKER_FILE")" == "$RELEASE_ID" ]; then
     echo "Already at the latest release. Skipping download."
     exit 0
@@ -28,6 +45,13 @@ TEMP_DIR=$(mktemp -d)
 cd $TEMP_DIR
 
 DOWNLOAD_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[0].url')
+if [ "$DOWNLOAD_URL" == "null" ] || [ -z "$DOWNLOAD_URL" ]; then
+    echo "No download URL found in release data. Skipping tools update."
+    cd - >/dev/null
+    rm -rf $TEMP_DIR
+    exit 0
+fi
+
 curl -L -o dist.zip -H "Authorization: token $TEMPLATE_PAT" -H "Accept: application/octet-stream" "$DOWNLOAD_URL"
 
 unzip -o dist.zip
