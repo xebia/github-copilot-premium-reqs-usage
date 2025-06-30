@@ -117,6 +117,9 @@ npm install
 
 # Build the app
 echo "Building application..."
+# Set deploy time for build
+export DEPLOY_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "Setting deploy time: $DEPLOY_TIME"
 npm run build
 
 # Move the built files to the output directory

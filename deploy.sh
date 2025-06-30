@@ -10,6 +10,10 @@ rm -rf dist
 
 # Build the frontend
 echo "Compiling frontend..."
+# Set deploy time for build
+export DEPLOY_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "Setting deploy time: $DEPLOY_TIME"
+
 npm install -f # force because there is a known mismatch of shadcn and react 19 - https://ui.shadcn.com/docs/react-19
 npm run build
 
