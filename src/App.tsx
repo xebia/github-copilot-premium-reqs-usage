@@ -391,11 +391,12 @@ function App() {
                                 <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
                               </Button>
                             </SheetTrigger>
-                            <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto p-7">
-                              <SheetHeader>
-                                <SheetTitle className="text-xl">Power Users Analysis</SheetTitle>
-                              </SheetHeader>
-                          <div className="mt-6 space-y-6">
+                            <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto">
+                              <div className="p-7">
+                                <SheetHeader>
+                                  <SheetTitle className="text-xl">Power Users Analysis</SheetTitle>
+                                </SheetHeader>
+                                <div className="mt-6 space-y-6">
                             {/* Power User Summary */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               <Card className="p-4">
@@ -511,6 +512,7 @@ function App() {
                                 </Table>
                               </div>
                             </Card>
+                                </div>
                               </div>
                             </SheetContent>
                           </Sheet>
