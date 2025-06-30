@@ -317,3 +317,14 @@ export function getPowerUserDailyData(powerUsers: PowerUserData[]): Array<{
     .map(([date, requests]) => ({ date, requests }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
+
+// Function to get the last date from CSV data
+export function getLastDateFromData(data: CopilotUsageData[]): string | null {
+  if (!data.length) return null;
+  
+  // Get all dates and find the maximum
+  const dates = data.map(item => item.timestamp.toISOString().split('T')[0]);
+  const sortedDates = dates.sort((a, b) => a.localeCompare(b));
+  
+  return sortedDates[sortedDates.length - 1];
+}

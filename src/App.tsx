@@ -24,7 +24,8 @@ import {
   getModelUsageSummary,
   getDailyModelData,
   getPowerUsers,
-  getPowerUserDailyData
+  getPowerUserDailyData,
+  getLastDateFromData
 } from "@/lib/utils";
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
   const [modelSummary, setModelSummary] = useState<ModelUsageSummary[]>([]);
   const [dailyModelData, setDailyModelData] = useState<DailyModelData[]>([]);
   const [powerUserSummary, setPowerUserSummary] = useState<PowerUserSummary | null>(null);
+  const [lastDateAvailable, setLastDateAvailable] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +96,10 @@ function App() {
         const powerUsers = getPowerUsers(parsedData);
         setPowerUserSummary(powerUsers);
         
+        // Get the last date available in the CSV
+        const lastDate = getLastDateFromData(parsedData);
+        setLastDateAvailable(lastDate);
+        
         setIsProcessing(false);
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
@@ -133,6 +139,7 @@ function App() {
         setModelSummary([]);
         setDailyModelData([]);
         setPowerUserSummary(null);
+        setLastDateAvailable(null);
       }
     };
     
@@ -453,7 +460,8 @@ function App() {
                                     <XAxis 
                                       dataKey="date" 
                                       tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }} 
+                                      tickLine={{ stroke: 'var(--border)' }}
+                                      domain={['dataMin', lastDateAvailable || 'dataMax']}
                                     />
                                     <YAxis 
                                       tick={{ fill: 'var(--foreground)' }}
@@ -559,7 +567,14 @@ function App() {
           </div>
           
           <div>
-            <h2 className="text-2xl font-semibold mb-2">Daily Usage Overview</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-semibold">Daily Usage Overview</h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border mb-8">
               <ChartContainer 
@@ -574,7 +589,8 @@ function App() {
                   <XAxis 
                     dataKey="date" 
                     tick={{ fill: 'var(--foreground)' }}
-                    tickLine={{ stroke: 'var(--border)' }} 
+                    tickLine={{ stroke: 'var(--border)' }}
+                    domain={['dataMin', lastDateAvailable || 'dataMax']}
                   />
                   <YAxis 
                     tick={{ fill: 'var(--foreground)' }}
@@ -640,7 +656,14 @@ function App() {
             </div>
             
             {/* Bar Chart - Requests per Model per Day */}
-            <h2 className="text-2xl font-semibold mb-2">Requests per Model per Day</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-semibold">Requests per Model per Day</h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border">
               <ChartContainer 
@@ -653,6 +676,7 @@ function App() {
                     dataKey="date"
                     tick={{ fill: 'var(--foreground)' }}
                     tickLine={{ stroke: 'var(--border)' }}
+                    domain={['dataMin', lastDateAvailable || 'dataMax']}
                   />
                   <YAxis 
                     tick={{ fill: 'var(--foreground)' }}
