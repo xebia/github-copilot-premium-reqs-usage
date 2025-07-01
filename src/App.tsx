@@ -12,6 +12,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
   AggregatedData, 
   CopilotUsageData, 
@@ -404,18 +406,21 @@ function App() {
                       </span>
                     </div>
                     {powerUserSummary && (
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button variant="outline" className="flex items-center gap-2">
-                            <span className="text-sm">Power Users:</span>
-                            <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent className="w-[600px] sm:w-[800px] overflow-y-auto">
-                          <SheetHeader>
-                            <SheetTitle>Power Users Analysis</SheetTitle>
-                          </SheetHeader>
-                          <div className="mt-6 space-y-6">
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button variant="outline" className="flex items-center gap-2">
+                                <span className="text-sm">Power Users:</span>
+                                <span className="font-bold">{powerUserSummary.totalPowerUsers}</span>
+                              </Button>
+                            </SheetTrigger>
+                            <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto">
+                              <div className="p-7">
+                                <SheetHeader>
+                                  <SheetTitle className="text-xl">Power Users Analysis</SheetTitle>
+                                </SheetHeader>
+                                <div className="mt-6 space-y-6">
                             {/* Power User Summary */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               <Card className="p-4">
@@ -531,9 +536,16 @@ function App() {
                                 </Table>
                               </div>
                             </Card>
-                          </div>
-                        </SheetContent>
-                      </Sheet>
+                                </div>
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Power users are the top 10% of users by request count.<br/>
+                          These users make the most requests to GitHub Copilot.</p>
+                        </TooltipContent>
+                      </UITooltip>
                     )}
                   </div>
                 </div>
@@ -757,6 +769,7 @@ function App() {
         </div>
       )}
       <Toaster position="top-right" />
+      <DeploymentFooter />
     </div>
   );
 }
