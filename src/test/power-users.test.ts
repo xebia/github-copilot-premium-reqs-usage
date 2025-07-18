@@ -174,4 +174,17 @@ describe('Power Users Functionality', () => {
     expect(result.totalPowerUsers).toBe(1); // Should have 1 power user (top 10% of 1 user = 1)
     expect(result.powerUsers[0].user).toBe('only-user');
   });
+
+  it('should calculate exceeding requests correctly for power users', () => {
+    const result = getPowerUsers(mockData);
+    
+    const powerUser1 = result.powerUsers.find(u => u.user === 'power-user-1');
+    
+    // power-user-1 has one request with exceedsQuota: true (12 requests on 2025-01-02)
+    expect(powerUser1?.exceedingRequests).toBe(12);
+    
+    // Verify total requests and exceeding requests are different
+    expect(powerUser1?.totalRequests).toBe(35); // 15 + 8 + 12
+    expect(powerUser1?.exceedingRequests).toBe(12); // Only the quota-exceeding request
+  });
 });

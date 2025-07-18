@@ -19,12 +19,15 @@ import {
   ModelUsageSummary,
   DailyModelData,
   PowerUserSummary,
+  PowerUserDailyBreakdown,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
   getDailyModelData,
   getPowerUsers,
-  getPowerUserDailyData
+  getPowerUserDailyData,
+  getPowerUserDailyBreakdown,
+  getLastDateFromData
 } from "@/lib/utils";
 
 function App() {
@@ -34,10 +37,27 @@ function App() {
   const [modelSummary, setModelSummary] = useState<ModelUsageSummary[]>([]);
   const [dailyModelData, setDailyModelData] = useState<DailyModelData[]>([]);
   const [powerUserSummary, setPowerUserSummary] = useState<PowerUserSummary | null>(null);
+  const [powerUserDailyBreakdown, setPowerUserDailyBreakdown] = useState<PowerUserDailyBreakdown[]>([]);
+  const [selectedPowerUser, setSelectedPowerUser] = useState<string | null>(null);
+  const [lastDateAvailable, setLastDateAvailable] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const handlePowerUserSelect = useCallback((userName: string | null) => {
+    setSelectedPowerUser(userName);
+  }, []);
+
+  // Generate filtered power user daily breakdown based on selected user
+  const getFilteredPowerUserBreakdown = useCallback(() => {
+    if (!selectedPowerUser || !data) {
+      return powerUserDailyBreakdown;
+    }
+    
+    // Filter the original data to only include the selected user, then regenerate breakdown
+    return getPowerUserDailyBreakdown(data, [selectedPowerUser]);
+  }, [selectedPowerUser, data, powerUserDailyBreakdown]);
+
   const processFile = useCallback((file: File) => {
     if (!file) return;
     
@@ -94,6 +114,18 @@ function App() {
         const powerUsers = getPowerUsers(parsedData);
         setPowerUserSummary(powerUsers);
         
+        // Get power user daily breakdown for the stacked bar chart
+        const powerUserNames = powerUsers.powerUsers.map(user => user.user);
+        const powerUserBreakdown = getPowerUserDailyBreakdown(parsedData, powerUserNames);
+        setPowerUserDailyBreakdown(powerUserBreakdown);
+        
+        // Get the last date available in the CSV
+        const lastDate = getLastDateFromData(parsedData);
+        setLastDateAvailable(lastDate);
+        
+        // Reset selected power user when new data is loaded
+        setSelectedPowerUser(null);
+        
         setIsProcessing(false);
         toast.success(`Loaded ${parsedData.length} records successfully`);
       } catch (error) {
@@ -133,6 +165,9 @@ function App() {
         setModelSummary([]);
         setDailyModelData([]);
         setPowerUserSummary(null);
+        setPowerUserDailyBreakdown([]);
+        setSelectedPowerUser(null);
+        setLastDateAvailable(null);
       }
     };
     
@@ -453,7 +488,8 @@ function App() {
                                     <XAxis 
                                       dataKey="date" 
                                       tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }} 
+                                      tickLine={{ stroke: 'var(--border)' }}
+                                      domain={['dataMin', lastDateAvailable || 'dataMax']}
                                     />
                                     <YAxis 
                                       tick={{ fill: 'var(--foreground)' }}
@@ -488,6 +524,103 @@ function App() {
                               </div>
                             </Card>
                             
+                            {/* Power User Requests Breakdown - Stacked Bar Chart */}
+                            <Card className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 
+                                  className={`text-md font-medium ${selectedPowerUser ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                                  onClick={() => selectedPowerUser && handlePowerUserSelect(null)}
+                                  title={selectedPowerUser ? 'Click to show all power users' : undefined}
+                                >
+                                  Power User Requests Breakdown (Compliant vs Exceeding)
+                                  {selectedPowerUser && (
+                                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                                      - {selectedPowerUser}
+                                    </span>
+                                  )}
+                                </h3>
+                                {selectedPowerUser && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handlePowerUserSelect(null)}
+                                  >
+                                    Show All
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="h-[300px]">
+                                <ChartContainer 
+                                  config={{
+                                    compliantRequests: { color: "#10b981" }, // green
+                                    exceedingRequests: { color: "#ef4444" }, // red
+                                  }}
+                                  className="h-full w-full"
+                                >
+                                  <BarChart data={getFilteredPowerUserBreakdown()}>
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                    <XAxis 
+                                      dataKey="date" 
+                                      tick={{ fill: 'var(--foreground)' }}
+                                      tickLine={{ stroke: 'var(--border)' }}
+                                      domain={['dataMin', lastDateAvailable || 'dataMax']}
+                                    />
+                                    <YAxis 
+                                      tick={{ fill: 'var(--foreground)' }}
+                                      tickLine={{ stroke: 'var(--border)' }} 
+                                    />
+                                    <ChartTooltip
+                                      content={({ active, payload, label }) => {
+                                        if (active && payload && payload.length) {
+                                          const compliant = payload.find(p => p.dataKey === 'compliantRequests')?.value || 0;
+                                          const exceeding = payload.find(p => p.dataKey === 'exceedingRequests')?.value || 0;
+                                          const total = Number(compliant) + Number(exceeding);
+                                          
+                                          return (
+                                            <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                              <div className="font-medium mb-2">{label}</div>
+                                              <div className="space-y-2">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+                                                    <span>Compliant:</span>
+                                                  </div>
+                                                  <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                                  <div className="flex items-center gap-1.5">
+                                                    <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                                                    <span>Exceeding:</span>
+                                                  </div>
+                                                  <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                                  <div className="font-medium">Total:</div>
+                                                  <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      }}
+                                    />
+                                    <Legend />
+                                    
+                                    {/* Stacked bars for compliant and exceeding requests */}
+                                    <Bar
+                                      dataKey="compliantRequests"
+                                      name="Compliant Requests"
+                                      stackId="requests"
+                                      fill="#10b981"
+                                    />
+                                    <Bar
+                                      dataKey="exceedingRequests"
+                                      name="Exceeding Requests"
+                                      stackId="requests"
+                                      fill="#ef4444"
+                                    />
+                                  </BarChart>
+                                </ChartContainer>
+                              </div>
+                            </Card>
+                            
                             {/* Individual Power Users List */}
                             <Card className="p-4">
                               <h3 className="text-md font-medium mb-3">Individual Power Users</h3>
@@ -497,14 +630,22 @@ function App() {
                                     <TableRow>
                                       <TableHead>User</TableHead>
                                       <TableHead className="text-right">Total Requests</TableHead>
+                                      <TableHead className="text-right">Exceeding Requests</TableHead>
                                       <TableHead className="text-right">Models Used</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
                                     {powerUserSummary.powerUsers.map((user) => (
                                       <TableRow key={user.user}>
-                                        <TableCell className="font-medium">{user.user}</TableCell>
+                                        <TableCell 
+                                          className={`font-medium cursor-pointer hover:text-blue-600 transition-colors ${selectedPowerUser === user.user ? 'text-blue-600 font-bold' : ''}`}
+                                          onClick={() => handlePowerUserSelect(user.user)}
+                                          title="Click to filter chart to this user"
+                                        >
+                                          {user.user}
+                                        </TableCell>
                                         <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                                        <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                                         <TableCell className="text-right">{Object.keys(user.requestsByModel).length}</TableCell>
                                       </TableRow>
                                     ))}
@@ -559,7 +700,14 @@ function App() {
           </div>
           
           <div>
-            <h2 className="text-2xl font-semibold mb-2">Daily Usage Overview</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-semibold">Daily Usage Overview</h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border mb-8">
               <ChartContainer 
@@ -574,7 +722,8 @@ function App() {
                   <XAxis 
                     dataKey="date" 
                     tick={{ fill: 'var(--foreground)' }}
-                    tickLine={{ stroke: 'var(--border)' }} 
+                    tickLine={{ stroke: 'var(--border)' }}
+                    domain={['dataMin', lastDateAvailable || 'dataMax']}
                   />
                   <YAxis 
                     tick={{ fill: 'var(--foreground)' }}
@@ -640,7 +789,14 @@ function App() {
             </div>
             
             {/* Bar Chart - Requests per Model per Day */}
-            <h2 className="text-2xl font-semibold mb-2">Requests per Model per Day</h2>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-2xl font-semibold">Requests per Model per Day</h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border">
               <ChartContainer 
@@ -653,6 +809,7 @@ function App() {
                     dataKey="date"
                     tick={{ fill: 'var(--foreground)' }}
                     tickLine={{ stroke: 'var(--border)' }}
+                    domain={['dataMin', lastDateAvailable || 'dataMax']}
                   />
                   <YAxis 
                     tick={{ fill: 'var(--foreground)' }}
