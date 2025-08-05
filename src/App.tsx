@@ -623,6 +623,7 @@ function App() {
                   </Table>
                 </div>
               </Card>
+            </div>
           </div>
           
           <div>
@@ -690,7 +691,6 @@ function App() {
                     stroke="#10b981" 
                     strokeWidth={2}
                     activeDot={{ r: 6 }}
-                    stackId="1"
                   />
                   <Line
                     key="exceeding"
@@ -700,7 +700,6 @@ function App() {
                     stroke="#ef4444" 
                     strokeWidth={2}
                     activeDot={{ r: 6 }}
-                    stackId="1"
                   />
                 </LineChart>
               </ChartContainer>
@@ -711,7 +710,10 @@ function App() {
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border">
               <ChartContainer 
-                config={getModelColors()}
+                config={Object.entries(getModelColors()).reduce((acc, [model, color]) => {
+                  acc[model] = { color };
+                  return acc;
+                }, {} as Record<string, { color: string }>)}
                 className="h-[500px] w-full"
               >
                 <BarChart data={barChartData()}>
