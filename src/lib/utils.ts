@@ -464,3 +464,44 @@ export function getLastDateFromData(data: CopilotUsageData[]): string | null {
   
   return sortedDates[sortedDates.length - 1];
 }
+
+export interface ExceededRequestData {
+  user: string;
+  date: string;
+  exceededRequests: number;
+  totalRequests: number;
+}
+
+export function getExceededRequestData(data: CopilotUsageData[]): ExceededRequestData[] {
+  const exceededData: Record<string, ExceededRequestData> = {};
+
+  data.forEach(item => {
+    if (item.exceedsQuota) {
+      const date = item.timestamp.toISOString().split('T')[0];
+      const key = `${item.user}-${date}`;
+
+      if (!exceededData[key]) {
+        exceededData[key] = {
+          user: item.user,
+          date,
+          exceededRequests: 0,
+          totalRequests: 0,
+        };
+      }
+
+      exceededData[key].exceededRequests += item.requestsUsed;
+    }
+
+    const date = item.timestamp.toISOString().split('T')[0];
+    const key = `${item.user}-${date}`;
+
+    if (exceededData[key]) {
+      exceededData[key].totalRequests += item.requestsUsed;
+    }
+  });
+
+  return Object.values(exceededData).sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.user.localeCompare(b.user);
+  });
+}
