@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
@@ -26,6 +27,7 @@ import {
   getDailyModelData,
   getPowerUsers,
   getPowerUserDailyData,
+  COPILOT_PLANS,
   getPowerUserDailyBreakdown,
   getLastDateFromData
 } from "@/lib/utils";
@@ -41,6 +43,7 @@ function App() {
   const [selectedPowerUser, setSelectedPowerUser] = useState<string | null>(null);
   const [lastDateAvailable, setLastDateAvailable] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -315,6 +318,27 @@ function App() {
       return acc;
     }, {} as Record<string, string>);
   }, [uniqueModels]);
+
+  // Helper function to get plan limit based on selected plan
+  const getPlanLimit = useCallback((item: ModelUsageSummary) => {
+    let limit: number;
+    switch (selectedPlan) {
+      case COPILOT_PLANS.INDIVIDUAL:
+        limit = item.individualPlanLimit;
+        break;
+      case COPILOT_PLANS.BUSINESS:
+        limit = item.businessPlanLimit;
+        break;
+      case COPILOT_PLANS.ENTERPRISE:
+        limit = item.enterprisePlanLimit;
+        break;
+      default:
+        limit = item.businessPlanLimit;
+    }
+    
+    // For 0x multiplier models, show "Unlimited" despite having constant plan limits
+    return item.multiplier === 0 ? "Unlimited" : limit.toLocaleString();
+  }, [selectedPlan]);
 
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
@@ -672,7 +696,22 @@ function App() {
             {/* Model Usage Table */}
             <div className="mb-6">
               <Card className="p-5">
-                <h3 className="text-md font-medium mb-3">Requests per Model</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-md font-medium">Requests per Model</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Plan Type:</span>
+                    <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Select plan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={COPILOT_PLANS.INDIVIDUAL}>Individual</SelectItem>
+                        <SelectItem value={COPILOT_PLANS.BUSINESS}>Business</SelectItem>
+                        <SelectItem value={COPILOT_PLANS.ENTERPRISE}>Enterprise</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="overflow-auto max-h-60">
                   <Table>
                     <TableHeader>
@@ -681,6 +720,9 @@ function App() {
                         <TableHead className="text-right">Total Requests</TableHead>
                         <TableHead className="text-right">Compliant</TableHead>
                         <TableHead className="text-right">Exceeding</TableHead>
+                        <TableHead className="text-right">Multiplier</TableHead>
+                        <TableHead className="text-right">Plan Limit</TableHead>
+                        <TableHead className="text-right">Excess Cost</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -690,6 +732,32 @@ function App() {
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.multiplier}x</TableCell>
+                          <TableCell className="text-right">{getPlanLimit(item)}</TableCell>
+                          <TableCell className="text-right">${item.excessCost.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            </div>
+            
+            {/* Models List Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              <Card className="p-5">
+                <h3 className="text-md font-medium mb-3">Models List</h3>
+                <div className="overflow-auto max-h-60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Model Name</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {uniqueModels.map((model) => (
+                        <TableRow key={model}>
+                          <TableCell>{model}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -772,7 +840,6 @@ function App() {
                     stroke="#10b981" 
                     strokeWidth={2}
                     activeDot={{ r: 6 }}
-                    stackId="1"
                   />
                   <Line
                     key="exceeding"
@@ -782,7 +849,6 @@ function App() {
                     stroke="#ef4444" 
                     strokeWidth={2}
                     activeDot={{ r: 6 }}
-                    stackId="1"
                   />
                 </LineChart>
               </ChartContainer>
@@ -800,7 +866,10 @@ function App() {
             <Separator className="mb-6" />
             <div className="bg-card p-4 rounded-lg border">
               <ChartContainer 
-                config={getModelColors()}
+                config={Object.entries(getModelColors()).reduce((acc, [model, color]) => {
+                  acc[model] = { color };
+                  return acc;
+                }, {} as Record<string, { color: string }>)}
                 className="h-[500px] w-full"
               >
                 <BarChart data={barChartData()}>
