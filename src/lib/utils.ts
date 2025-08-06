@@ -465,43 +465,105 @@ export function getLastDateFromData(data: CopilotUsageData[]): string | null {
   return sortedDates[sortedDates.length - 1];
 }
 
-export interface ExceededRequestData {
+export interface ExceededRequestDetail {
   user: string;
   date: string;
   exceededRequests: number;
-  totalRequests: number;
+  totalRequestsOnDay: number;
+  compliantRequestsOnDay: number;
+  modelsUsed: string[];
+  exceedingByModel: Record<string, number>;
 }
 
-export function getExceededRequestData(data: CopilotUsageData[]): ExceededRequestData[] {
-  const exceededData: Record<string, ExceededRequestData> = {};
+export function getExceededRequestDetails(data: CopilotUsageData[], targetDate?: string, targetUser?: string): ExceededRequestDetail[] {
+  const exceededDetails: Record<string, ExceededRequestDetail> = {};
 
-  data.forEach(item => {
-    if (item.exceedsQuota) {
-      const date = item.timestamp.toISOString().split('T')[0];
-      const key = `${item.user}-${date}`;
+  // Filter data if specific date or user is provided
+  let filteredData = data;
+  if (targetDate) {
+    filteredData = filteredData.filter(item => 
+      item.timestamp.toISOString().split('T')[0] === targetDate
+    );
+  }
+  if (targetUser) {
+    filteredData = filteredData.filter(item => item.user === targetUser);
+  }
 
-      if (!exceededData[key]) {
-        exceededData[key] = {
-          user: item.user,
-          date,
-          exceededRequests: 0,
-          totalRequests: 0,
-        };
-      }
-
-      exceededData[key].exceededRequests += item.requestsUsed;
-    }
-
+  // Process all data to find users who exceeded limits
+  filteredData.forEach(item => {
     const date = item.timestamp.toISOString().split('T')[0];
     const key = `${item.user}-${date}`;
 
-    if (exceededData[key]) {
-      exceededData[key].totalRequests += item.requestsUsed;
+    if (!exceededDetails[key]) {
+      exceededDetails[key] = {
+        user: item.user,
+        date,
+        exceededRequests: 0,
+        totalRequestsOnDay: 0,
+        compliantRequestsOnDay: 0,
+        modelsUsed: [],
+        exceedingByModel: {},
+      };
+    }
+
+    const detail = exceededDetails[key];
+    
+    // Track total requests for this day
+    detail.totalRequestsOnDay += item.requestsUsed;
+    
+    // Track models used
+    if (!detail.modelsUsed.includes(item.model)) {
+      detail.modelsUsed.push(item.model);
+    }
+    
+    // Track exceeded vs compliant requests
+    if (item.exceedsQuota) {
+      detail.exceededRequests += item.requestsUsed;
+      detail.exceedingByModel[item.model] = (detail.exceedingByModel[item.model] || 0) + item.requestsUsed;
+    } else {
+      detail.compliantRequestsOnDay += item.requestsUsed;
     }
   });
 
-  return Object.values(exceededData).sort((a, b) => {
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.user.localeCompare(b.user);
-  });
+  // Filter to only return entries where users actually exceeded limits
+  return Object.values(exceededDetails)
+    .filter(detail => detail.exceededRequests > 0)
+    .sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date); // Most recent first
+      return b.exceededRequests - a.exceededRequests; // Highest exceeded requests first
+    });
+}
+
+export function getUserExceededRequestSummary(data: CopilotUsageData[], userName: string): {
+  totalExceededDays: number;
+  totalExceededRequests: number;
+  averageExceededPerDay: number;
+  worstDay: { date: string; exceededRequests: number; totalRequests: number } | null;
+} {
+  const userExceededDetails = getExceededRequestDetails(data, undefined, userName);
+  
+  if (userExceededDetails.length === 0) {
+    return {
+      totalExceededDays: 0,
+      totalExceededRequests: 0,
+      averageExceededPerDay: 0,
+      worstDay: null,
+    };
+  }
+
+  const totalExceededRequests = userExceededDetails.reduce((sum, detail) => sum + detail.exceededRequests, 0);
+  const worstDay = userExceededDetails.reduce((worst, current) => 
+    current.exceededRequests > worst.exceededRequests ? current : worst
+  );
+
+  return {
+    totalExceededDays: userExceededDetails.length,
+    totalExceededRequests,
+    averageExceededPerDay: totalExceededRequests / userExceededDetails.length,
+    worstDay: {
+      date: worstDay.date,
+      exceededRequests: worstDay.exceededRequests,
+      totalRequests: worstDay.totalRequestsOnDay,
+    },
+  };
 }

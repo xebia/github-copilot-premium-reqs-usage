@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
   AggregatedData, 
@@ -21,6 +22,7 @@ import {
   DailyModelData,
   PowerUserSummary,
   PowerUserDailyBreakdown,
+  ExceededRequestDetail,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -29,7 +31,9 @@ import {
   getPowerUserDailyData,
   COPILOT_PLANS,
   getPowerUserDailyBreakdown,
-  getLastDateFromData
+  getLastDateFromData,
+  getExceededRequestDetails,
+  getUserExceededRequestSummary
 } from "@/lib/utils";
 
 function App() {
@@ -46,6 +50,9 @@ function App() {
   const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
   const [isProcessing, setIsProcessing] = useState(false);
   const [visibleBars, setVisibleBars] = useState(['compliantRequests', 'exceedingRequests']);
+  const [showExceededDetails, setShowExceededDetails] = useState(false);
+  const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handlePowerUserSelect = useCallback((userName: string | null) => {
@@ -355,6 +362,19 @@ function App() {
     }
   };
 
+  const handleExceedingBarClick = (barData) => {
+    if (!data || !selectedPowerUser) return;
+    
+    // Get the date from the clicked bar for display purposes
+    const clickedDate = barData.date;
+    setSelectedDate(clickedDate);
+    
+    // Get exceeded request details for the selected power user across ALL dates
+    const exceededDetails = getExceededRequestDetails(data, null, selectedPowerUser);
+    setExceededDetailsData(exceededDetails);
+    setShowExceededDetails(true);
+  };
+
   const CustomLegend = ({ payload }) => {
     // Define all possible bars
     const allPossibleBars = ['compliantRequests', 'exceedingRequests'];
@@ -608,6 +628,11 @@ function App() {
                                       - {selectedPowerUser}
                                     </span>
                                   )}
+                                  {selectedPowerUser && (
+                                    <div className="text-xs text-muted-foreground font-normal mt-1">
+                                      💡 Click on red bars to see all exceeded request details for this user
+                                    </div>
+                                  )}
                                 </h3>
                                 {selectedPowerUser && (
                                   <Button 
@@ -730,6 +755,8 @@ function App() {
                                         name="Exceeding Requests"
                                         stackId="requests"
                                         fill="#ef4444"
+                                        onClick={handleExceedingBarClick}
+                                        style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
                                         onMouseOver={(e) => console.log('Hovered Exceeding', e)}
                                       />
                                     )}
@@ -1020,6 +1047,122 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Exceeded Request Details Dialog */}
+      <Dialog open={showExceededDetails} onOpenChange={setShowExceededDetails}>
+        <DialogContent className="w-[98vw] max-w-none max-h-[85vh] overflow-y-auto" style={{ width: '98vw', maxWidth: 'none' }}>
+          <DialogHeader>
+            <DialogTitle>
+              Exceeded Request Details
+              {selectedPowerUser && ` - ${selectedPowerUser}`}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {exceededDetailsData.length > 0 ? (
+              <>
+                {/* Summary Card */}
+                {selectedPowerUser && data && (
+                  <Card className="p-4">
+                    <h3 className="text-md font-medium mb-3">User Summary</h3>
+                    {(() => {
+                      const userSummary = getUserExceededRequestSummary(data, selectedPowerUser);
+                      return (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-sm text-muted-foreground">Total Days with Exceeded Requests</div>
+                            <div className="text-lg font-bold">{userSummary.totalExceededDays}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Total Exceeded Requests</div>
+                            <div className="text-lg font-bold">{userSummary.totalExceededRequests.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Average Exceeded per Day</div>
+                            <div className="text-lg font-bold">{userSummary.averageExceededPerDay.toFixed(1)}</div>
+                          </div>
+                          {userSummary.worstDay && (
+                            <div>
+                              <div className="text-sm text-muted-foreground">Worst Day</div>
+                              <div className="text-sm font-bold">{userSummary.worstDay.date}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {userSummary.worstDay.exceededRequests} exceeded of {userSummary.worstDay.totalRequests} total
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </Card>
+                )}
+
+                {/* Detailed Table */}
+                <Card className="p-4">
+                  <h3 className="text-md font-medium mb-3">
+                    All Exceeded Request Days ({exceededDetailsData.length} days)
+                  </h3>
+                  <div className="overflow-auto" style={{ minWidth: '100%' }}>
+                    <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[120px]">Date</TableHead>
+                          <TableHead className="text-right min-w-[140px]">Exceeded Requests</TableHead>
+                          <TableHead className="text-right min-w-[160px]">Total Requests (Day)</TableHead>
+                          <TableHead className="text-right min-w-[150px]">Compliant Requests</TableHead>
+                          <TableHead className="min-w-[200px]">Models Used</TableHead>
+                          <TableHead className="min-w-[200px]">Exceeding by Model</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {exceededDetailsData.map((detail, index) => (
+                          <TableRow key={`${detail.user}-${detail.date}-${index}`}>
+                            <TableCell>{detail.date}</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">
+                              {detail.exceededRequests.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {detail.totalRequestsOnDay.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {detail.compliantRequestsOnDay.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {detail.modelsUsed.map((model, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="inline-block bg-secondary px-2 py-1 rounded text-xs"
+                                  >
+                                    {model}
+                                  </span>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                {Object.entries(detail.exceedingByModel).map(([model, requests]) => (
+                                  <div key={model} className="text-xs">
+                                    <span className="font-medium">{model}:</span> {requests.toLocaleString()}
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No exceeded request details found for the selected criteria.</p>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Toaster position="top-right" />
       <DeploymentFooter />
     </div>
