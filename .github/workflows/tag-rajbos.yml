@@ -18,18 +18,10 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Tag rajbos on new issue
-        if: github.event_name == 'issues'
+      - name: Tag rajbos on new issue or PR
         uses: devops-actions/issue-comment-tag@v0.1.8
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           team: rajbos
           issue: ${{ github.event.issue.number }}
-
-      - name: Tag rajbos on new PR
-        if: github.event_name == 'pull_request'
-        uses: devops-actions/issue-comment-tag@v0.1.8
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          team: rajbos
           pr: ${{ github.event.pull_request.number }}
