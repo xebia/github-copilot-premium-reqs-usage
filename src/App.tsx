@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, DragEvent } from "react";
+import React, { useState, useCallback, useRef, DragEvent } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
 import { toast, Toaster } from "sonner";
 import {
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
   AggregatedData, 
@@ -21,6 +22,7 @@ import {
   DailyModelData,
   PowerUserSummary,
   PowerUserDailyBreakdown,
+  ExceededRequestDetail,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -29,7 +31,9 @@ import {
   getPowerUserDailyData,
   COPILOT_PLANS,
   getPowerUserDailyBreakdown,
-  getLastDateFromData
+  getLastDateFromData,
+  getExceededRequestDetails,
+  getUserExceededRequestSummary
 } from "@/lib/utils";
 
 function App() {
@@ -45,6 +49,10 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
   const [isProcessing, setIsProcessing] = useState(false);
+  const [visibleBars, setVisibleBars] = useState(['compliantRequests', 'exceedingRequests']);
+  const [showExceededDetails, setShowExceededDetails] = useState(false);
+  const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handlePowerUserSelect = useCallback((userName: string | null) => {
@@ -340,6 +348,64 @@ function App() {
     return item.multiplier === 0 ? "Unlimited" : limit.toLocaleString();
   }, [selectedPlan]);
 
+  const handleLegendClick = (barKey) => {
+    if (barKey === 'all') {
+      setVisibleBars(['compliantRequests', 'exceedingRequests']);
+    } else {
+      // Map the display names back to data keys
+      const dataKeyMap = {
+        'Compliant Requests': 'compliantRequests',
+        'Exceeding Requests': 'exceedingRequests'
+      };
+      const actualKey = dataKeyMap[barKey] || barKey;
+      setVisibleBars([actualKey]);
+    }
+  };
+
+  const handleExceedingBarClick = (barData) => {
+    if (!data || !selectedPowerUser) return;
+    
+    // Get the date from the clicked bar for display purposes
+    const clickedDate = barData.date;
+    setSelectedDate(clickedDate);
+    
+    // Get exceeded request details for the selected power user across ALL dates
+    const exceededDetails = getExceededRequestDetails(data, null, selectedPowerUser);
+    setExceededDetailsData(exceededDetails);
+    setShowExceededDetails(true);
+  };
+
+  const CustomLegend = ({ payload }) => {
+    // Define all possible bars
+    const allPossibleBars = ['compliantRequests', 'exceedingRequests'];
+    const showAllOption = allPossibleBars.length > 1 && visibleBars.length === 1;
+    
+    return (
+      <ul className="flex gap-4">
+        {/* Only show "All Requests" if there are multiple filter options and not all are currently visible */}
+        {showAllOption && (
+          <li
+            className="cursor-pointer flex items-center gap-2 text-gray-600 hover:text-black"
+            onClick={() => handleLegendClick('all')}
+          >
+            <span className="w-4 h-4 bg-gray-400"></span>
+            All Requests
+          </li>
+        )}
+        {payload.map((entry) => (
+          <li
+            key={entry.dataKey}
+            className="cursor-pointer flex items-center gap-2 text-gray-600 hover:text-black"
+            onClick={() => handleLegendClick(entry.dataKey)}
+          >
+            <span className="w-4 h-4" style={{ backgroundColor: entry.color }}></span>
+            {entry.value}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
       <header className="mb-8">
@@ -562,6 +628,11 @@ function App() {
                                       - {selectedPowerUser}
                                     </span>
                                   )}
+                                  {selectedPowerUser && (
+                                    <div className="text-xs text-muted-foreground font-normal mt-1">
+                                      💡 Click on red bars to see all exceeded request details for this user
+                                    </div>
+                                  )}
                                 </h3>
                                 {selectedPowerUser && (
                                   <Button 
@@ -595,51 +666,100 @@ function App() {
                                     />
                                     <ChartTooltip
                                       content={({ active, payload, label }) => {
-                                        if (active && payload && payload.length) {
-                                          const compliant = payload.find(p => p.dataKey === 'compliantRequests')?.value || 0;
-                                          const exceeding = payload.find(p => p.dataKey === 'exceedingRequests')?.value || 0;
-                                          const total = Number(compliant) + Number(exceeding);
+                                        if (!active || !payload?.length) return null;
+                                        
+                                        // Filter to only show data for visible bars
+                                        const visibleData = payload.filter(p => visibleBars.includes(p.dataKey));
+                                        if (!visibleData.length) return null;
+                                        
+                                        // Configuration for tooltip items
+                                        const tooltipConfig = {
+                                          compliantRequests: { 
+                                            label: 'Compliant', 
+                                            color: 'bg-[#10b981]' 
+                                          },
+                                          exceedingRequests: { 
+                                            label: 'Exceeding', 
+                                            color: 'bg-[#ef4444]' 
+                                          }
+                                        };
+                                        
+                                        const formatNumber = (value) => 
+                                          Number(value).toLocaleString(undefined, {
+                                            maximumFractionDigits: 2, 
+                                            minimumFractionDigits: 0
+                                          });
+
+                                        // Single filter view - show only the filtered data
+                                        if (visibleData.length === 1) {
+                                          const item = visibleData[0];
+                                          const config = tooltipConfig[item.dataKey];
                                           
                                           return (
                                             <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                                               <div className="font-medium mb-2">{label}</div>
-                                              <div className="space-y-2">
-                                                <div className="grid grid-cols-2 gap-2">
-                                                  <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-                                                    <span>Compliant:</span>
-                                                  </div>
-                                                  <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
-                                                  <div className="flex items-center gap-1.5">
-                                                    <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
-                                                    <span>Exceeding:</span>
-                                                  </div>
-                                                  <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
-                                                  <div className="font-medium">Total:</div>
-                                                  <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
-                                                </div>
+                                              <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${config.color}`} />
+                                                <span>{config.label}: {formatNumber(item.value)}</span>
                                               </div>
                                             </div>
                                           );
                                         }
-                                        return null;
+
+                                        // Multi-filter view - show detailed breakdown
+                                        const values = visibleData.reduce((acc, item) => {
+                                          acc[item.dataKey] = Number(item.value);
+                                          return acc;
+                                        }, {} as Record<string, number>);
+                                        
+                                        const total = Object.values(values).reduce((sum: number, val: number) => sum + val, 0);
+
+                                        return (
+                                          <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                            <div className="font-medium mb-2">{label}</div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              {visibleData.map(item => {
+                                                const config = tooltipConfig[item.dataKey];
+                                                return (
+                                                  <React.Fragment key={item.dataKey}>
+                                                    <div className="flex items-center gap-1.5">
+                                                      <div className={`w-2 h-2 rounded-full ${config.color}`} />
+                                                      <span>{config.label}:</span>
+                                                    </div>
+                                                    <div className="text-right">{formatNumber(item.value)}</div>
+                                                  </React.Fragment>
+                                                );
+                                              })}
+                                              <div className="font-medium">Total:</div>
+                                              <div className="text-right font-medium">{formatNumber(total)}</div>
+                                            </div>
+                                          </div>
+                                        );
                                       }}
                                     />
-                                    <Legend />
+                                    <Legend content={(props) => <CustomLegend payload={props.payload} />} />
                                     
                                     {/* Stacked bars for compliant and exceeding requests */}
-                                    <Bar
-                                      dataKey="compliantRequests"
-                                      name="Compliant Requests"
-                                      stackId="requests"
-                                      fill="#10b981"
-                                    />
-                                    <Bar
-                                      dataKey="exceedingRequests"
-                                      name="Exceeding Requests"
-                                      stackId="requests"
-                                      fill="#ef4444"
-                                    />
+                                    {visibleBars.includes('compliantRequests') && (
+                                      <Bar
+                                        dataKey="compliantRequests"
+                                        name="Compliant Requests"
+                                        stackId="requests"
+                                        fill="#10b981"
+                                        onMouseOver={(e) => console.log('Hovered Compliant', e)}
+                                      />
+                                    )}
+                                    {visibleBars.includes('exceedingRequests') && (
+                                      <Bar
+                                        dataKey="exceedingRequests"
+                                        name="Exceeding Requests"
+                                        stackId="requests"
+                                        fill="#ef4444"
+                                        onClick={handleExceedingBarClick}
+                                        style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
+                                        onMouseOver={(e) => console.log('Hovered Exceeding', e)}
+                                      />
+                                    )}
                                   </BarChart>
                                 </ChartContainer>
                               </div>
@@ -927,6 +1047,122 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Exceeded Request Details Dialog */}
+      <Dialog open={showExceededDetails} onOpenChange={setShowExceededDetails}>
+        <DialogContent className="w-[98vw] max-w-none max-h-[85vh] overflow-y-auto" style={{ width: '98vw', maxWidth: 'none' }}>
+          <DialogHeader>
+            <DialogTitle>
+              Exceeded Request Details
+              {selectedPowerUser && ` - ${selectedPowerUser}`}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {exceededDetailsData.length > 0 ? (
+              <>
+                {/* Summary Card */}
+                {selectedPowerUser && data && (
+                  <Card className="p-4">
+                    <h3 className="text-md font-medium mb-3">User Summary</h3>
+                    {(() => {
+                      const userSummary = getUserExceededRequestSummary(data, selectedPowerUser);
+                      return (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-sm text-muted-foreground">Total Days with Exceeded Requests</div>
+                            <div className="text-lg font-bold">{userSummary.totalExceededDays}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Total Exceeded Requests</div>
+                            <div className="text-lg font-bold">{userSummary.totalExceededRequests.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Average Exceeded per Day</div>
+                            <div className="text-lg font-bold">{userSummary.averageExceededPerDay.toFixed(1)}</div>
+                          </div>
+                          {userSummary.worstDay && (
+                            <div>
+                              <div className="text-sm text-muted-foreground">Worst Day</div>
+                              <div className="text-sm font-bold">{userSummary.worstDay.date}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {userSummary.worstDay.exceededRequests} exceeded of {userSummary.worstDay.totalRequests} total
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </Card>
+                )}
+
+                {/* Detailed Table */}
+                <Card className="p-4">
+                  <h3 className="text-md font-medium mb-3">
+                    All Exceeded Request Days ({exceededDetailsData.length} days)
+                  </h3>
+                  <div className="overflow-auto" style={{ minWidth: '100%' }}>
+                    <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[120px]">Date</TableHead>
+                          <TableHead className="text-right min-w-[140px]">Exceeded Requests</TableHead>
+                          <TableHead className="text-right min-w-[160px]">Total Requests (Day)</TableHead>
+                          <TableHead className="text-right min-w-[150px]">Compliant Requests</TableHead>
+                          <TableHead className="min-w-[200px]">Models Used</TableHead>
+                          <TableHead className="min-w-[200px]">Exceeding by Model</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {exceededDetailsData.map((detail, index) => (
+                          <TableRow key={`${detail.user}-${detail.date}-${index}`}>
+                            <TableCell>{detail.date}</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">
+                              {detail.exceededRequests.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {detail.totalRequestsOnDay.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {detail.compliantRequestsOnDay.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {detail.modelsUsed.map((model, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="inline-block bg-secondary px-2 py-1 rounded text-xs"
+                                  >
+                                    {model}
+                                  </span>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                {Object.entries(detail.exceedingByModel).map(([model, requests]) => (
+                                  <div key={model} className="text-xs">
+                                    <span className="font-medium">{model}:</span> {requests.toLocaleString()}
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No exceeded request details found for the selected criteria.</p>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Toaster position="top-right" />
       <DeploymentFooter />
     </div>
