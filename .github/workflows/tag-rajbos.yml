@@ -23,3 +23,5 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           team: rajbos
+          issue: ${{ github.event.issue.number }}
+          pr: ${{ github.event.pull_request.number }}
