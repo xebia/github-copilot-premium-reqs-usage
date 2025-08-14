@@ -772,6 +772,7 @@ function App() {
                                 <Table>
                                   <TableHeader>
                                     <TableRow>
+                                      <TableHead className="w-12">#</TableHead>
                                       <TableHead>User</TableHead>
                                       <TableHead className="text-right">Total Requests</TableHead>
                                       <TableHead className="text-right">Exceeding Requests</TableHead>
@@ -779,8 +780,11 @@ function App() {
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                    {powerUserSummary.powerUsers.map((user) => (
+                                    {powerUserSummary.powerUsers.map((user, index) => (
                                       <TableRow key={user.user}>
+                                        <TableCell className="text-center text-muted-foreground font-medium">
+                                          {index + 1}
+                                        </TableCell>
                                         <TableCell 
                                           className={`font-medium cursor-pointer hover:text-blue-600 transition-colors ${selectedPowerUser === user.user ? 'text-blue-600 font-bold' : ''}`}
                                           onClick={() => handlePowerUserSelect(user.user)}
