@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -862,6 +862,23 @@ function App() {
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell className="font-medium">Total</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        </TableCell>
+                        <TableCell className="text-right">—</TableCell>
+                        <TableCell className="text-right">—</TableCell>
+                        <TableCell className="text-right">${modelSummary.reduce((sum, item) => sum + item.excessCost, 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    </TableFooter>
                   </Table>
                 </div>
               </Card>
