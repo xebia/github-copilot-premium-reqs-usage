@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, DragEvent } from "react";
+import React, { useState, useCallback, useRef, DragEvent, useEffect } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
 import { toast, Toaster } from "sonner";
 import {
@@ -34,7 +34,8 @@ import {
   getUniqueModelsFromBreakdown,
   getLastDateFromData,
   getExceededRequestDetails,
-  getUserExceededRequestSummary
+  getUserExceededRequestSummary,
+  getUniqueUsersExceedingQuota
 } from "@/lib/utils";
 
 function App() {
@@ -54,7 +55,16 @@ function App() {
   const [showExceededDetails, setShowExceededDetails] = useState(false);
   const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [usersExceedingQuota, setUsersExceedingQuota] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Recalculate users exceeding quota when plan selection changes
+  useEffect(() => {
+    if (data && data.length > 0) {
+      const exceedingUsersCount = getUniqueUsersExceedingQuota(data, selectedPlan);
+      setUsersExceedingQuota(exceedingUsersCount);
+    }
+  }, [selectedPlan, data]);
   
   const handlePowerUserSelect = useCallback((userName: string | null) => {
     setSelectedPowerUser(userName);
@@ -137,6 +147,10 @@ function App() {
         const powerUserBreakdown = getPowerUserDailyBreakdown(parsedData, powerUserNames);
         setPowerUserDailyBreakdown(powerUserBreakdown);
         
+        // Get count of users exceeding quota for top bar display
+        const exceedingUsersCount = getUniqueUsersExceedingQuota(parsedData, selectedPlan);
+        setUsersExceedingQuota(exceedingUsersCount);
+        
         // Get the last date available in the CSV
         const lastDate = getLastDateFromData(parsedData);
         setLastDateAvailable(lastDate);
@@ -185,6 +199,7 @@ function App() {
         setPowerUserSummary(null);
         setPowerUserDailyBreakdown([]);
         setSelectedPowerUser(null);
+        setUsersExceedingQuota(0);
         setLastDateAvailable(null);
       }
     };
@@ -511,6 +526,12 @@ function App() {
                       <span className="text-sm text-muted-foreground">Models Used:</span>
                       <span className="text-lg font-bold">
                         {uniqueModels.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Users Exceeding Quota:</span>
+                      <span className="text-lg font-bold text-red-600">
+                        {usersExceedingQuota.toLocaleString()}
                       </span>
                     </div>
                     {powerUserSummary && (
