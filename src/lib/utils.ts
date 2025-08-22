@@ -283,6 +283,8 @@ export interface PowerUserDailyBreakdown {
   date: string;
   compliantRequests: number;
   exceedingRequests: number;
+  // Model breakdown - each model will have its own field for recharts stacking
+  [key: string]: string | number; // Allow dynamic model fields
 }
 
 
@@ -443,6 +445,16 @@ export function getPowerUserDailyBreakdown(data: CopilotUsageData[], powerUserNa
       };
     }
     
+    // Track model usage - create field name for this model
+    const modelFieldName = item.model;
+    if (!dailyBreakdown[date][modelFieldName]) {
+      dailyBreakdown[date][modelFieldName] = 0;
+    }
+    
+    // Add to model-specific field
+    dailyBreakdown[date][modelFieldName] = (dailyBreakdown[date][modelFieldName] as number) + item.requestsUsed;
+    
+    // Keep the existing compliant/exceeding breakdown for backwards compatibility
     if (item.exceedsQuota) {
       dailyBreakdown[date].exceedingRequests += item.requestsUsed;
     } else {
@@ -452,6 +464,22 @@ export function getPowerUserDailyBreakdown(data: CopilotUsageData[], powerUserNa
   
   // Convert to array and sort by date
   return Object.values(dailyBreakdown).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Helper function to extract all unique models from power user daily breakdown data
+export function getUniqueModelsFromBreakdown(breakdownData: PowerUserDailyBreakdown[]): string[] {
+  const modelSet = new Set<string>();
+  
+  breakdownData.forEach(dayData => {
+    Object.keys(dayData).forEach(key => {
+      // Skip non-model fields (date, compliantRequests, exceedingRequests)
+      if (key !== 'date' && key !== 'compliantRequests' && key !== 'exceedingRequests') {
+        modelSet.add(key);
+      }
+    });
+  });
+  
+  return Array.from(modelSet).sort();
 }
 
 // Function to get the last date from CSV data

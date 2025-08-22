@@ -31,6 +31,7 @@ import {
   getPowerUserDailyData,
   COPILOT_PLANS,
   getPowerUserDailyBreakdown,
+  getUniqueModelsFromBreakdown,
   getLastDateFromData,
   getExceededRequestDetails,
   getUserExceededRequestSummary
@@ -68,6 +69,12 @@ function App() {
     // Filter the original data to only include the selected user, then regenerate breakdown
     return getPowerUserDailyBreakdown(data, [selectedPowerUser]);
   }, [selectedPowerUser, data, powerUserDailyBreakdown]);
+
+  // Get unique models from the power user breakdown data
+  const getPowerUserModels = useCallback(() => {
+    const breakdown = getFilteredPowerUserBreakdown();
+    return getUniqueModelsFromBreakdown(breakdown);
+  }, [getFilteredPowerUserBreakdown]);
 
   const processFile = useCallback((file: File) => {
     if (!file) return;
@@ -307,16 +314,16 @@ function App() {
   
   // Generate colors for models in bar chart
   const getModelColors = useCallback(() => {
-    // Use a set of predefined colors that are visually distinct
+    // Use a set of predefined colors that are visually distinct from exceeding requests red (#ef4444)
     const colors = [
       "#4285F4", // Blue
-      "#EA4335", // Red
+      "#9C27B0", // Purple (changed from red to avoid confusion with exceeding requests)
       "#FBBC05", // Yellow
       "#34A853", // Green
       "#8E44AD", // Purple
       "#F39C12", // Orange
       "#16A085", // Teal
-      "#E74C3C", // Red-Orange
+      "#FF9800", // Amber (changed from red-orange to avoid confusion with exceeding requests)
       "#3498DB", // Light Blue
       "#1ABC9C"  // Turquoise
     ];
@@ -622,7 +629,7 @@ function App() {
                                   onClick={() => selectedPowerUser && handlePowerUserSelect(null)}
                                   title={selectedPowerUser ? 'Click to show all power users' : undefined}
                                 >
-                                  Power User Requests Breakdown (Compliant vs Exceeding)
+                                  Power User Requests Breakdown (By Model & Compliance)
                                   {selectedPowerUser && (
                                     <span className="text-sm font-normal text-muted-foreground ml-2">
                                       - {selectedPowerUser}
@@ -646,10 +653,21 @@ function App() {
                               </div>
                               <div className="h-[300px]">
                                 <ChartContainer 
-                                  config={{
-                                    compliantRequests: { color: "#10b981" }, // green
-                                    exceedingRequests: { color: "#ef4444" }, // red
-                                  }}
+                                  config={(() => {
+                                    const models = getPowerUserModels();
+                                    const modelColors = getModelColors();
+                                    const config: Record<string, { color: string }> = {
+                                      compliantRequests: { color: "#10b981" }, // green
+                                      exceedingRequests: { color: "#ef4444" }, // red
+                                    };
+                                    
+                                    // Add each model with its color
+                                    models.forEach((model, index) => {
+                                      config[model] = { color: modelColors[model] || "#94a3b8" };
+                                    });
+                                    
+                                    return config;
+                                  })()}
                                   className="h-full w-full"
                                 >
                                   <BarChart data={getFilteredPowerUserBreakdown()}>
@@ -739,7 +757,21 @@ function App() {
                                     />
                                     <Legend content={(props) => <CustomLegend payload={props.payload} />} />
                                     
-                                    {/* Stacked bars for compliant and exceeding requests */}
+                                    {/* Dynamic stacked bars for each model */}
+                                    {getPowerUserModels().map((model) => {
+                                      const modelColors = getModelColors();
+                                      return (
+                                        <Bar
+                                          key={model}
+                                          dataKey={model}
+                                          name={model}
+                                          stackId="models"
+                                          fill={modelColors[model] || "#94a3b8"}
+                                        />
+                                      );
+                                    })}
+                                    
+                                    {/* Keep the original compliant/exceeding bars but make them toggleable */}
                                     {visibleBars.includes('compliantRequests') && (
                                       <Bar
                                         dataKey="compliantRequests"

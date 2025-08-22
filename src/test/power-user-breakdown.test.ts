@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPowerUserDailyBreakdown, CopilotUsageData } from '../lib/utils';
+import { getPowerUserDailyBreakdown, getUniqueModelsFromBreakdown, CopilotUsageData } from '../lib/utils';
 
 describe('Power User Daily Breakdown', () => {
   const mockData: CopilotUsageData[] = [
@@ -126,5 +126,44 @@ describe('Power User Daily Breakdown', () => {
     expect(result).toHaveLength(1);
     expect(result[0].compliantRequests).toBe(1.5);
     expect(result[0].exceedingRequests).toBe(2.3);
+  });
+
+  it('should include model-specific fields in daily breakdown', () => {
+    const powerUserNames = ['power-user-1'];
+    const result = getPowerUserDailyBreakdown(mockData, powerUserNames);
+    
+    // Check that model fields are included
+    const day1 = result.find(r => r.date === '2025-01-01');
+    expect(day1).toBeDefined();
+    expect(day1?.['gpt-4']).toBe(15); // From mockData, power-user-1 used gpt-4 for 15 requests on 2025-01-01
+    expect(day1?.['claude-3']).toBe(8); // From mockData, power-user-1 used claude-3 for 8 requests on 2025-01-01
+    
+    const day2 = result.find(r => r.date === '2025-01-02');
+    expect(day2).toBeDefined(); 
+    expect(day2?.['gpt-4']).toBe(12); // From mockData, power-user-1 used gpt-4 for 12 requests on 2025-01-02
+    expect(day2?.['claude-3']).toBeUndefined(); // No claude-3 usage on 2025-01-02
+  });
+
+  it('should aggregate model usage across multiple power users', () => {
+    const powerUserNames = ['power-user-1', 'power-user-2'];
+    const result = getPowerUserDailyBreakdown(mockData, powerUserNames);
+    
+    const day1 = result.find(r => r.date === '2025-01-01');
+    expect(day1).toBeDefined();
+    // power-user-1: 15 gpt-4, power-user-2: 20 gpt-4 = 35 total
+    expect(day1?.['gpt-4']).toBe(35);
+    // power-user-1: 8 claude-3, power-user-2: 0 claude-3 = 8 total  
+    expect(day1?.['claude-3']).toBe(8);
+  });
+
+  it('should extract unique models from breakdown data', () => {
+    const powerUserNames = ['power-user-1', 'power-user-2'];
+    const result = getPowerUserDailyBreakdown(mockData, powerUserNames);
+    const models = getUniqueModelsFromBreakdown(result);
+    
+    expect(models).toContain('gpt-4');
+    expect(models).toContain('claude-3');
+    expect(models).toHaveLength(2);
+    expect(models).toEqual(['claude-3', 'gpt-4']); // Should be sorted
   });
 });
