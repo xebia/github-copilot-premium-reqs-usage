@@ -595,3 +595,26 @@ export function getUserExceededRequestSummary(data: CopilotUsageData[], userName
     },
   };
 }
+
+/**
+ * Get the count of unique users who have exceeded their quota limits
+ * @param data - Array of Copilot usage data
+ * @param plan - The plan type to check limits against (defaults to BUSINESS)
+ */
+export function getUniqueUsersExceedingQuota(data: CopilotUsageData[], plan: string = COPILOT_PLANS.BUSINESS): number {
+  if (!data.length) return 0;
+
+  // Get the plan limit for comparison
+  const planLimit = PLAN_MONTHLY_LIMITS[plan] || PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+
+  // Aggregate total requests per user
+  const userTotals: Record<string, number> = {};
+  data.forEach(item => {
+    userTotals[item.user] = (userTotals[item.user] || 0) + item.requestsUsed;
+  });
+
+  // Count users who exceed the plan limit
+  const usersExceedingPlan = Object.keys(userTotals).filter(user => userTotals[user] > planLimit);
+  
+  return usersExceedingPlan.length;
+}
