@@ -23,6 +23,7 @@ import {
   PowerUserSummary,
   PowerUserDailyBreakdown,
   ExceededRequestDetail,
+  ProjectedUserData,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -37,6 +38,8 @@ import {
   getUserExceededRequestSummary,
   getUniqueUsersExceedingQuota,
   getTotalRequestsForUsersExceedingQuota,
+  getProjectedUsersExceedingQuota,
+  getProjectedUsersExceedingQuotaDetails,
   EXCESS_REQUEST_COST
 } from "@/lib/utils";
 
@@ -58,7 +61,10 @@ function App() {
   const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [usersExceedingQuota, setUsersExceedingQuota] = useState<number>(0);
+  const [projectedUsersExceedingQuota, setProjectedUsersExceedingQuota] = useState<number>(0);
   const [showPotentialCostDetails, setShowPotentialCostDetails] = useState(false);
+  const [showProjectedUsersDialog, setShowProjectedUsersDialog] = useState(false);
+  const [projectedUsersData, setProjectedUsersData] = useState<ProjectedUserData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Recalculate users exceeding quota when plan selection changes
@@ -66,6 +72,12 @@ function App() {
     if (data && data.length > 0) {
       const exceedingUsersCount = getUniqueUsersExceedingQuota(data, selectedPlan);
       setUsersExceedingQuota(exceedingUsersCount);
+      
+      const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(data, selectedPlan);
+      setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
+      
+      const projectedDetails = getProjectedUsersExceedingQuotaDetails(data, selectedPlan);
+      setProjectedUsersData(projectedDetails);
     }
   }, [selectedPlan, data]);
   
@@ -153,6 +165,14 @@ function App() {
         // Get count of users exceeding quota for top bar display
         const exceedingUsersCount = getUniqueUsersExceedingQuota(parsedData, selectedPlan);
         setUsersExceedingQuota(exceedingUsersCount);
+        
+        // Get projected count of users who will exceed quota by month-end
+        const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(parsedData, selectedPlan);
+        setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
+        
+        // Get projected users details
+        const projectedDetails = getProjectedUsersExceedingQuotaDetails(parsedData, selectedPlan);
+        setProjectedUsersData(projectedDetails);
         
         // Get the last date available in the CSV
         const lastDate = getLastDateFromData(parsedData);
@@ -511,8 +531,8 @@ function App() {
             <Separator className="mb-4" />
             <div className="mb-4">
               <Card>
-                <div className="p-5 flex items-center">
-                  <div className="flex-1 flex items-center gap-6">
+                <div className="p-5">
+                  <div className="flex items-center gap-6 flex-wrap">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Total Requests:</span>
                       <span className="text-lg font-bold">
@@ -535,6 +555,16 @@ function App() {
                       <span className="text-sm text-muted-foreground">Users Exceeding Quota:</span>
                       <span className="text-lg font-bold text-red-600">
                         {usersExceedingQuota.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Projected to Exceed by Month-End:</span>
+                      <span 
+                        className="text-lg font-bold text-orange-600 cursor-pointer hover:text-orange-700 transition-colors"
+                        onClick={() => setShowProjectedUsersDialog(true)}
+                        title="Click to see detailed list"
+                      >
+                        {projectedUsersExceedingQuota.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1231,71 +1261,281 @@ function App() {
 
       {/* Potential Cost Details Dialog */}
       <Dialog open={showPotentialCostDetails} onOpenChange={setShowPotentialCostDetails}>
-        <DialogContent className="w-[90vw] max-w-2xl">
+        <DialogContent className="!max-w-none w-[80vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Potential Cost Breakdown</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {data && (
               <>
-                {/* All Premium Requests */}
+                {/* Left Column */}
+                <div className="space-y-6">
+                  {/* All Premium Requests */}
+                  <Card className="p-4">
+                    <h3 className="text-md font-medium mb-3">All Premium Requests</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Total Requests:</span>
+                        <span className="font-bold">
+                          {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Cost per Request:</span>
+                        <span className="font-bold">${EXCESS_REQUEST_COST.toFixed(2)}</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Total Hypothetical Cost:</span>
+                        <span className="font-bold text-orange-600 text-lg">
+                          ${(data.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Projected Users Extra Cost */}
+                  <Card className="p-4">
+                    <h3 className="text-md font-medium mb-3">Projected Users Extra Cost by Month-End</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Users Projected to Exceed:</span>
+                        <span className="font-bold text-orange-600">
+                          {projectedUsersData.length.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Projected Extra Requests:</span>
+                        <span className="font-bold text-orange-600">
+                          {(() => {
+                            const planLimit = selectedPlan === COPILOT_PLANS.INDIVIDUAL ? 50 : 
+                                            selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
+                            const totalExceeding = projectedUsersData.reduce((sum, user) => 
+                              sum + Math.max(0, user.projectedMonthlyTotal - planLimit), 0);
+                            return totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0});
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Cost per Request:</span>
+                        <span className="font-bold">${EXCESS_REQUEST_COST.toFixed(2)}</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Projected Extra Cost:</span>
+                        <span className="font-bold text-orange-600 text-lg">
+                          {(() => {
+                            const planLimit = selectedPlan === COPILOT_PLANS.INDIVIDUAL ? 50 : 
+                                            selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
+                            const totalExceeding = projectedUsersData.reduce((sum, user) => 
+                              sum + Math.max(0, user.projectedMonthlyTotal - planLimit), 0);
+                            const totalCost = totalExceeding * EXCESS_REQUEST_COST;
+                            return `$${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-6">
+                  {/* Exceeding Users Only */}
+                  <Card className="p-4">
+                    <h3 className="text-md font-medium mb-3">Users Exceeding {selectedPlan === COPILOT_PLANS.INDIVIDUAL ? '50' : selectedPlan === COPILOT_PLANS.BUSINESS ? '300' : '1,000'} Request Limit Only</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Exceeding Requests:</span>
+                        <span className="font-bold text-red-600">
+                          {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Cost per Request:</span>
+                        <span className="font-bold">${EXCESS_REQUEST_COST.toFixed(2)}</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Cost for Exceeding Requests Only:</span>
+                        <span className="font-bold text-red-600 text-lg">
+                          ${(getTotalRequestsForUsersExceedingQuota(data, selectedPlan) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Summary */}
+                  <Card className="p-4 bg-secondary/20">
+                    <h3 className="text-md font-medium mb-3">Summary</h3>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p><strong>All Premium Requests:</strong> Shows the hypothetical cost if all premium requests were charged at ${EXCESS_REQUEST_COST} each, regardless of user quotas.</p>
+                      <p><strong>Exceeding Users Only:</strong> Shows the cost for all requests made by users who have exceeded the {selectedPlan === COPILOT_PLANS.INDIVIDUAL ? '50' : selectedPlan === COPILOT_PLANS.BUSINESS ? '300' : '1000'} monthly request limit per user.</p>
+                      <p><strong>Projected Users Extra Cost:</strong> Shows the projected cost for users who are likely to exceed their monthly quota by month-end based on current usage patterns.</p>
+                    </div>
+                  </Card>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Projected Users Dialog */}
+      <Dialog open={showProjectedUsersDialog} onOpenChange={setShowProjectedUsersDialog}>
+        <DialogContent className="!max-w-none w-[80vw] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Users Projected to Exceed Monthly Quota by Month-End
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {projectedUsersData.length > 0 ? (
+              <>
+                {/* Summary Card */}
                 <Card className="p-4">
-                  <h3 className="text-md font-medium mb-3">All Premium Requests</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Total Requests:</span>
-                      <span className="font-bold">
-                        {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
-                      </span>
+                  <h3 className="text-md font-medium mb-3">Projection Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Users at Risk</div>
+                      <div className="text-lg font-bold text-orange-600">{projectedUsersData.length}</div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Cost per Request:</span>
-                      <span className="font-bold">${EXCESS_REQUEST_COST.toFixed(2)}</span>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Plan Limit</div>
+                      <div className="text-lg font-bold">
+                        {selectedPlan === COPILOT_PLANS.INDIVIDUAL ? '50' : 
+                         selectedPlan === COPILOT_PLANS.BUSINESS ? '300' : '1,000'} requests/month
+                      </div>
                     </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Total Hypothetical Cost:</span>
-                      <span className="font-bold text-orange-600 text-lg">
-                        ${(data.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                      </span>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Days Elapsed</div>
+                      <div className="text-lg font-bold">{projectedUsersData[0]?.daysElapsed || 0} days</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Projected Monthly Total</div>
+                      <div className="text-lg font-bold text-orange-600">
+                        {projectedUsersData.reduce((sum, user) => sum + user.projectedMonthlyTotal, 0)
+                          .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Total Cost</div>
+                      <div className="text-lg font-bold text-red-600">
+                        {(() => {
+                          const planLimit = selectedPlan === COPILOT_PLANS.INDIVIDUAL ? 50 : 
+                                          selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
+                          const totalExceeding = projectedUsersData.reduce((sum, user) => 
+                            sum + Math.max(0, user.projectedMonthlyTotal - planLimit), 0);
+                          const totalCost = totalExceeding * EXCESS_REQUEST_COST;
+                          return `$${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">Based on Current Month Data</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Projection assumes consistent usage patterns through month-end
                     </div>
                   </div>
                 </Card>
 
-                {/* Exceeding Users Only */}
+                {/* Users Table */}
                 <Card className="p-4">
-                  <h3 className="text-md font-medium mb-3">Users Exceeding 300 Request Limit Only</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Exceeding Requests:</span>
-                      <span className="font-bold text-red-600">
-                        {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Cost per Request:</span>
-                      <span className="font-bold">${EXCESS_REQUEST_COST.toFixed(2)}</span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Cost for Exceeding Requests Only:</span>
-                      <span className="font-bold text-red-600 text-lg">
-                        ${(getTotalRequestsForUsersExceedingQuota(data, selectedPlan) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Summary */}
-                <Card className="p-4 bg-secondary/20">
-                  <h3 className="text-md font-medium mb-3">Summary</h3>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p><strong>All Premium Requests:</strong> Shows the hypothetical cost if all premium requests were charged at ${EXCESS_REQUEST_COST} each, regardless of user quotas.</p>
-                    <p><strong>Exceeding Users Only:</strong> Shows the cost for all requests made by users who have exceeded the {selectedPlan === COPILOT_PLANS.INDIVIDUAL ? '50' : selectedPlan === COPILOT_PLANS.BUSINESS ? '300' : '1000'} monthly request limit per user.</p>
+                  <h3 className="text-md font-medium mb-3">
+                    User Details ({projectedUsersData.length} users)
+                  </h3>
+                  <div className="overflow-auto max-h-[60vh]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-8">#</TableHead>
+                          <TableHead className="min-w-[120px]">User</TableHead>
+                          <TableHead className="text-right min-w-[80px]">Current</TableHead>
+                          <TableHead className="text-right min-w-[80px]">Daily Avg</TableHead>
+                          <TableHead className="text-right min-w-[80px]">Projected</TableHead>
+                          <TableHead className="text-right min-w-[80px]">Exceeding</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {projectedUsersData.map((user, index) => {
+                          const planLimit = selectedPlan === COPILOT_PLANS.INDIVIDUAL ? 50 : 
+                                          selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
+                          const exceedingBy = user.projectedMonthlyTotal - planLimit;
+                          
+                          return (
+                            <TableRow key={user.user}>
+                              <TableCell className="text-center text-muted-foreground font-medium text-xs">
+                                {index + 1}
+                              </TableCell>
+                              <TableCell className="font-medium text-sm" title={user.user}>{user.user}</TableCell>
+                              <TableCell className="text-right text-sm">
+                                {user.currentRequests.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {user.dailyAverage.toLocaleString(undefined, {maximumFractionDigits: 1, minimumFractionDigits: 1})}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-orange-600 text-sm">
+                                {user.projectedMonthlyTotal.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-red-600 text-sm">
+                                +{exceedingBy.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow className="bg-muted/50">
+                          <TableCell className="text-center font-bold text-xs">
+                            Total
+                          </TableCell>
+                          <TableCell className="font-bold text-sm">
+                            {projectedUsersData.length} users
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-sm">
+                            {projectedUsersData.reduce((sum, user) => sum + user.currentRequests, 0)
+                              .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-sm">
+                            {(projectedUsersData.reduce((sum, user) => sum + user.dailyAverage, 0))
+                              .toLocaleString(undefined, {maximumFractionDigits: 1, minimumFractionDigits: 1})}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-orange-600 text-sm">
+                            {projectedUsersData.reduce((sum, user) => sum + user.projectedMonthlyTotal, 0)
+                              .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-red-600 text-sm">
+                            {(() => {
+                              const planLimit = selectedPlan === COPILOT_PLANS.INDIVIDUAL ? 50 : 
+                                              selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
+                              const totalExceeding = projectedUsersData.reduce((sum, user) => 
+                                sum + Math.max(0, user.projectedMonthlyTotal - planLimit), 0);
+                              const totalCost = totalExceeding * EXCESS_REQUEST_COST;
+                              
+                              return (
+                                <div className="flex flex-col items-end">
+                                  <div>+{totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    ${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} cost
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    </Table>
                   </div>
                 </Card>
               </>
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">
+                  No users are currently projected to exceed their monthly quota based on current usage patterns.
+                </p>
+              </Card>
             )}
           </div>
         </DialogContent>
