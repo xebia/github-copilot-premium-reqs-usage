@@ -287,6 +287,14 @@ export interface PowerUserDailyBreakdown {
   [key: string]: string | number; // Allow dynamic model fields
 }
 
+export interface ProjectedUserData {
+  user: string;
+  currentRequests: number;
+  projectedMonthlyTotal: number;
+  daysElapsed: number;
+  dailyAverage: number;
+}
+
 
 
 // Copilot plan constants
@@ -640,4 +648,120 @@ export function getTotalRequestsForUsersExceedingQuota(data: CopilotUsageData[],
   const usersExceedingPlan = Object.keys(userTotals).filter(user => userTotals[user] > planLimit);
   
   return usersExceedingPlan.reduce((sum, user) => sum + userTotals[user], 0);
+}
+
+/**
+ * Project the number of users who will exceed their quota limits by month-end
+ * based on their current usage patterns
+ * @param data - Array of Copilot usage data
+ * @param plan - The plan type to check limits against (defaults to BUSINESS)
+ */
+export function getProjectedUsersExceedingQuota(data: CopilotUsageData[], plan: string = COPILOT_PLANS.BUSINESS): number {
+  if (!data.length) return 0;
+
+  // Get the plan limit for comparison
+  const planLimit = PLAN_MONTHLY_LIMITS[plan] || PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+
+  // Get the last date from the data to determine the current month and days elapsed
+  const lastDate = getLastDateFromData(data);
+  if (!lastDate) return 0;
+
+  const lastDateObj = new Date(lastDate);
+  const year = lastDateObj.getFullYear();
+  const month = lastDateObj.getMonth();
+  
+  // Calculate the first day of the month and days elapsed (inclusive)
+  const firstDayOfMonth = new Date(year, month, 1);
+  const daysElapsed = lastDateObj.getDate(); // getDate() returns day of month (1-31)
+  
+  // Calculate total days in this month
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Aggregate total requests per user for the current month only
+  const userTotals: Record<string, number> = {};
+  data.forEach(item => {
+    const itemDate = new Date(item.timestamp);
+    // Only count data from the current month (same year and month as last date)
+    if (itemDate.getFullYear() === year && itemDate.getMonth() === month) {
+      userTotals[item.user] = (userTotals[item.user] || 0) + item.requestsUsed;
+    }
+  });
+
+  // For each user, calculate their projected monthly usage
+  let projectedExceedingUsers = 0;
+  Object.entries(userTotals).forEach(([user, totalRequests]) => {
+    // Calculate average daily requests for this user
+    const averageDailyRequests = totalRequests / daysElapsed;
+    
+    // Project to full month
+    const projectedMonthlyRequests = averageDailyRequests * totalDaysInMonth;
+    
+    // Check if they would exceed the limit
+    if (projectedMonthlyRequests > planLimit) {
+      projectedExceedingUsers++;
+    }
+  });
+
+  return projectedExceedingUsers;
+}
+
+/**
+ * Get detailed data for users projected to exceed their quota by month-end
+ * @param data - Array of Copilot usage data
+ * @param plan - The plan type to check limits against (defaults to BUSINESS)
+ */
+export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[], plan: string = COPILOT_PLANS.BUSINESS): ProjectedUserData[] {
+  if (!data.length) return [];
+
+  // Get the plan limit for comparison
+  const planLimit = PLAN_MONTHLY_LIMITS[plan] || PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+
+  // Get the last date from the data to determine the current month and days elapsed
+  const lastDate = getLastDateFromData(data);
+  if (!lastDate) return [];
+
+  const lastDateObj = new Date(lastDate);
+  const year = lastDateObj.getFullYear();
+  const month = lastDateObj.getMonth();
+  
+  // Calculate the first day of the month and days elapsed (inclusive)
+  const firstDayOfMonth = new Date(year, month, 1);
+  const daysElapsed = lastDateObj.getDate(); // getDate() returns day of month (1-31)
+  
+  // Calculate total days in this month
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Aggregate total requests per user for the current month only
+  const userTotals: Record<string, number> = {};
+  data.forEach(item => {
+    const itemDate = new Date(item.timestamp);
+    // Only count data from the current month (same year and month as last date)
+    if (itemDate.getFullYear() === year && itemDate.getMonth() === month) {
+      userTotals[item.user] = (userTotals[item.user] || 0) + item.requestsUsed;
+    }
+  });
+
+  // Build the list of users projected to exceed quota
+  const projectedUsers: ProjectedUserData[] = [];
+  Object.entries(userTotals).forEach(([user, totalRequests]) => {
+    // Calculate average daily requests for this user
+    const averageDailyRequests = totalRequests / daysElapsed;
+    
+    // Project to full month
+    const projectedMonthlyRequests = averageDailyRequests * totalDaysInMonth;
+    
+    // Check if they would exceed the limit
+    if (projectedMonthlyRequests > planLimit) {
+      projectedUsers.push({
+        user,
+        currentRequests: totalRequests,
+        projectedMonthlyTotal: projectedMonthlyRequests,
+        daysElapsed,
+        dailyAverage: averageDailyRequests
+      });
+    }
+  });
+
+  // Sort by projected total descending (highest projected usage first)
+  return projectedUsers.sort((a, b) => b.projectedMonthlyTotal - a.projectedMonthlyTotal);
 }
