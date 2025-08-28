@@ -354,15 +354,15 @@ function App() {
   const getModelColors = useCallback(() => {
     // Use a set of predefined colors that are visually distinct from exceeding requests red (#ef4444)
     const colors = [
-      "#4285F4", // Blue
+      "#8B5CF6", // Purple
       "#9C27B0", // Purple (changed from red to avoid confusion with exceeding requests)
       "#FBBC05", // Yellow
-      "#34A853", // Green
+      "#9333ea", // Purple
       "#8E44AD", // Purple
       "#F39C12", // Orange
       "#16A085", // Teal
       "#FF9800", // Amber (changed from red-orange to avoid confusion with exceeding requests)
-      "#3498DB", // Light Blue
+      "#A855F7", // Light Purple
       "#1ABC9C"  // Turquoise
     ];
     
@@ -455,13 +455,11 @@ function App() {
     <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
       <header className="mb-8">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+          <div className="flex items-center gap-4">
+            <img src="xebia-logo.png" alt="Xebia Logo" className="h-10" />
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
               GitHub Copilot Premium Requests Usage Analyzer
             </h1>
-            <p className="text-muted-foreground">
-              Upload your Copilot usage CSV export to visualize request patterns
-            </p>
           </div>
           <Button variant="outline" size="sm" asChild>
             <a 
@@ -558,7 +556,7 @@ function App() {
                       </span>
                     </div>
                     <div 
-                      className="flex items-center gap-2 cursor-pointer hover:text-orange-700 transition-colors"
+                      className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1"
                       onClick={() => setShowProjectedUsersDialog(true)}
                       title="Click to see detailed list"
                     >
@@ -568,7 +566,7 @@ function App() {
                       </span>
                     </div>
                     <div 
-                      className="flex items-center gap-2 cursor-pointer hover:text-orange-700 transition-colors"
+                      className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1"
                       onClick={() => setShowPotentialCostDetails(true)}
                       title="Click to see cost breakdown"
                     >
@@ -582,7 +580,7 @@ function App() {
                         <TooltipTrigger asChild>
                           <Sheet>
                             <SheetTrigger asChild>
-                              <div className="flex items-center gap-2 cursor-pointer hover:text-blue-700 transition-colors">
+                              <div className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1">
                                 <span className="text-sm text-muted-foreground">Power Users:</span>
                                 <span className="text-lg font-bold">{powerUserSummary.totalPowerUsers}</span>
                               </div>
@@ -688,8 +686,7 @@ function App() {
                             {/* Power User Requests Breakdown - Stacked Bar Chart */}
                             <Card className="p-4">
                               <div className="flex items-center justify-between mb-3">
-                                <h3 
-                                  className={`text-md font-medium ${selectedPowerUser ? 'cursor-pointer hover:text-blue-600 transition-colors' : ''}`}
+                                <h3 className={`text-md font-medium ${selectedPowerUser ? 'cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1' : ''}`}
                                   onClick={() => selectedPowerUser && handlePowerUserSelect(null)}
                                   title={selectedPowerUser ? 'Click to show all power users' : undefined}
                                 >
@@ -959,7 +956,7 @@ function App() {
                       ))}
                     </TableBody>
                     <TableFooter>
-                      <TableRow>
+                      <TableRow className="bg-accent/20">
                         <TableCell className="font-medium">Total</TableCell>
                         <TableCell className="text-right font-medium">
                           {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
