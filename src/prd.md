@@ -54,10 +54,10 @@
 
 ### Color Strategy
 - **Color Scheme Type**: Custom palette with GitHub-inspired colors
-- **Primary Color**: GitHub-blue (oklch(0.55 0.18 250)) - represents the professional identity
+- **Primary Color**: Xebia-purple (oklch(0.6 0.2 280)) - represents the professional identity
 - **Secondary Colors**: Neutral grays for UI elements
 - **Accent Color**: Green for compliant requests, Red for quota-exceeding requests
-- **Color Psychology**: Blue conveys trustworthiness, green represents safety/compliance, red indicates warning/excess
+- **Color Psychology**: Purple conveys creativity and innovation
 - **Color Accessibility**: High contrast between text and backgrounds, distinct colors for data visualization
 - **Foreground/Background Pairings**:
   - Background (oklch(0.98 0.01 240)) / Foreground (oklch(0.25 0.01 240))
