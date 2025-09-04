@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
+import { UserSquare, ChevronRight } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -556,33 +557,36 @@ function App() {
                       </span>
                     </div>
                     <div 
-                      className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1"
+                      className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-orange-200 hover:border-orange-300 hover:shadow-sm bg-orange-25 dark:bg-orange-950/10"
                       onClick={() => setShowProjectedUsersDialog(true)}
                       title="Click to see detailed list"
                     >
                       <span className="text-sm text-muted-foreground">Projected to Exceed by Month-End:</span>
-                      <span className="text-lg font-bold text-orange-600">
+                      <span className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors">
                         {projectedUsersExceedingQuota.toLocaleString()}
                       </span>
+                      <ChevronRight className="h-3 w-3 text-orange-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     </div>
                     <div 
-                      className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1"
+                      className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-orange-200 hover:border-orange-300 hover:shadow-sm bg-orange-25 dark:bg-orange-950/10"
                       onClick={() => setShowPotentialCostDetails(true)}
                       title="Click to see cost breakdown"
                     >
                       <span className="text-sm text-muted-foreground">Potential Cost:</span>
-                      <span className="text-lg font-bold text-orange-600">
+                      <span className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors">
                         ${(data.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </span>
+                      <ChevronRight className="h-3 w-3 text-orange-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     </div>
                     {powerUserSummary && (
                       <UITooltip>
                         <TooltipTrigger asChild>
                           <Sheet>
                             <SheetTrigger asChild>
-                              <div className="flex items-center gap-2 cursor-pointer hover:bg-purple-100/80 dark:hover:bg-purple-900/20 transition-colors rounded-md -m-1 p-1">
+                              <div className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-blue-200 hover:border-blue-300 hover:shadow-sm bg-blue-25 dark:bg-blue-950/10">
                                 <span className="text-sm text-muted-foreground">Power Users:</span>
-                                <span className="text-lg font-bold">{powerUserSummary.totalPowerUsers}</span>
+                                <span className="text-lg font-bold text-blue-600 group-hover:text-blue-700 transition-colors">{powerUserSummary.totalPowerUsers}</span>
+                                <ChevronRight className="h-3 w-3 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                               </div>
                             </SheetTrigger>
                             <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto">
@@ -878,12 +882,17 @@ function App() {
                                         <TableCell className="text-center text-muted-foreground font-medium">
                                           {index + 1}
                                         </TableCell>
-                                        <TableCell 
-                                          className={`font-medium cursor-pointer hover:text-blue-600 transition-colors ${selectedPowerUser === user.user ? 'text-blue-600 font-bold' : ''}`}
-                                          onClick={() => handlePowerUserSelect(user.user)}
-                                          title="Click to filter chart to this user"
-                                        >
-                                          {user.user}
+                                        <TableCell className="font-medium">
+                                          <div 
+                                            className={`inline-flex items-center gap-1.5 cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all duration-200 rounded px-1.5 py-0.5 group ${selectedPowerUser === user.user ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 font-bold' : ''}`}
+                                            onClick={() => handlePowerUserSelect(user.user)}
+                                            title="Click to view user's request details"
+                                          >
+                                            <span className={`font-medium transition-colors hover:underline ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-foreground group-hover:text-blue-600'}`}>
+                                              {user.user}
+                                            </span>
+                                            <UserSquare className={`h-3 w-3 transition-all duration-200 group-hover:scale-110 opacity-60 group-hover:opacity-100 ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-blue-500'}`} />
+                                          </div>
                                         </TableCell>
                                         <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                                         <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
@@ -901,7 +910,8 @@ function App() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Power users are the top 10% of users by request count.<br/>
-                          These users make the most requests to GitHub Copilot.</p>
+                          These users make the most requests to GitHub Copilot.<br/>
+                          <strong>Click to view detailed analysis</strong></p>
                         </TooltipContent>
                       </UITooltip>
                     )}
