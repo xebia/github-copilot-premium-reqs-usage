@@ -13,7 +13,6 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
@@ -559,7 +558,7 @@ function App() {
                     <div 
                       className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-orange-200 hover:border-orange-300 hover:shadow-sm bg-orange-25 dark:bg-orange-950/10"
                       onClick={() => setShowProjectedUsersDialog(true)}
-                      title="Click to see detailed list"
+                      title="Click to see the users projected to exceed quota"
                     >
                       <span className="text-sm text-muted-foreground">Projected to Exceed by Month-End:</span>
                       <span className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors">
@@ -579,16 +578,17 @@ function App() {
                       <ChevronRight className="h-3 w-3 text-orange-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     </div>
                     {powerUserSummary && (
-                      <UITooltip>
-                        <TooltipTrigger asChild>
-                          <Sheet>
-                            <SheetTrigger asChild>
-                              <div className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-blue-200 hover:border-blue-300 hover:shadow-sm bg-blue-25 dark:bg-blue-950/10">
-                                <span className="text-sm text-muted-foreground">Power Users:</span>
-                                <span className="text-lg font-bold text-blue-600 group-hover:text-blue-700 transition-colors">{powerUserSummary.totalPowerUsers}</span>
-                                <ChevronRight className="h-3 w-3 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-                              </div>
-                            </SheetTrigger>
+                      <Sheet>
+                        <SheetTrigger asChild>
+                          <div 
+                            className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-blue-200 hover:border-blue-300 hover:shadow-sm bg-blue-25 dark:bg-blue-950/10"
+                            title="Click to view power users analysis"
+                          >
+                            <span className="text-sm text-muted-foreground">Power Users:</span>
+                            <span className="text-lg font-bold text-blue-600 group-hover:text-blue-700 transition-colors">{powerUserSummary.totalPowerUsers}</span>
+                            <ChevronRight className="h-3 w-3 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                          </div>
+                        </SheetTrigger>
                             <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto">
                               <div className="p-7">
                                 <SheetHeader>
@@ -906,14 +906,7 @@ function App() {
                                 </div>
                               </div>
                             </SheetContent>
-                          </Sheet>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Power users are the top 10% of users by request count.<br/>
-                          These users make the most requests to GitHub Copilot.<br/>
-                          <strong>Click to view detailed analysis</strong></p>
-                        </TooltipContent>
-                      </UITooltip>
+                        </Sheet>
                     )}
                   </div>
                 </div>
