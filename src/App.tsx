@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
-import { UserSquare, ChevronRight } from "lucide-react";
+import { UserSquare, ChevronRight, Shield } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -474,6 +474,26 @@ function App() {
           </Button>
         </div>
       </header>
+      
+      {/* Privacy Banner */}
+      <Card className="mb-6 border-green-200 bg-green-50 dark:bg-green-950/10 dark:border-green-800">
+        <div className="p-4">
+          <div className="flex items-center gap-3">
+            <Shield className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-sm font-medium text-green-800 dark:text-green-300">
+                  Your Data Stays Private
+                </h3>
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-400">
+                All CSV data is processed locally in your browser. We never upload, store, or transmit your data to any server. 
+                Your usage information remains completely private and secure on your machine.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
       
       {!(data && data.length > 0) && (
         <Card className="mb-8">
