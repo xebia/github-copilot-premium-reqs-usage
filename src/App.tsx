@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
-import { UserSquare, ChevronRight } from "lucide-react";
+import { UserSquare, ChevronRight, Shield } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -44,6 +44,7 @@ import {
 } from "@/lib/utils";
 
 function App() {
+  const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
   const [data, setData] = useState<CopilotUsageData[] | null>(null);
   const [aggregatedData, setAggregatedData] = useState<AggregatedData[]>([]);
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
@@ -474,6 +475,37 @@ function App() {
           </Button>
         </div>
       </header>
+
+      {/* Privacy Banner */}
+      {showPrivacyBanner && (
+        <Card className="mb-6 border border-green-300 bg-white/90 dark:bg-zinc-900/90 shadow-sm dark:border-green-700 relative">
+          <button
+            aria-label="Close privacy banner"
+            className="absolute top-3 right-3 text-green-700 dark:text-green-300 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded-full p-1 focus:outline-none focus:ring-2 focus:ring-green-400"
+            onClick={() => setShowPrivacyBanner(false)}
+            type="button"
+          >
+            <span className="sr-only">Close</span>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 6L14 14M14 6L6 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <div className="p-5 sm:p-6 flex items-center gap-4">
+            <Shield className="h-6 w-6 text-green-700 dark:text-green-300 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-base sm:text-lg font-semibold text-green-900 dark:text-green-200 tracking-tight">
+                  Your Data Stays Private
+                </h3>
+              </div>
+              <p className="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-100 leading-relaxed">
+                All CSV data is <span className="font-bold text-green-800 dark:text-green-300">processed locally in your browser</span>. We <span className="font-bold">never upload, store, or transmit your data</span> to any server.<br className="hidden sm:block" />
+                Your usage information remains <span className="font-bold text-green-800 dark:text-green-300">completely private and secure</span> on your machine.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
       
       {!(data && data.length > 0) && (
         <Card className="mb-8">
