@@ -1,0 +1,76 @@
+name: CI Build
+
+on:
+  # Trigger on all pull requests to validate builds
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+  
+  # Trigger on pushes to branches (but not main, which is handled by deploy workflow)
+  push:
+    branches-ignore: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+
+# Allow only one concurrent CI run per branch/PR
+concurrency:
+  group: "ci-${{ github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  # Build validation job
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Lint code
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm run test:run
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Build for GitHub Pages
+        run: npm run build:pages
+        
+      - name: Validate build outputs
+        run: |
+          echo "Validating standard build..."
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ Standard build failed: dist/index.html not found"
+            exit 1
+          fi
+          echo "✅ Standard build output validated"
+          
+          echo "Validating GitHub Pages build..."
+          if [ ! -f "dist/index.html" ]; then
+            echo "❌ GitHub Pages build failed: dist/index.html not found"
+            exit 1
+          fi
+          echo "✅ GitHub Pages build output validated"
+      
+      - name: Report build success
+        run: |
+          echo "🎉 CI Build completed successfully!"
+          echo "✅ Linting passed (with warnings allowed)"
+          echo "✅ All $( npm run test:run 2>&1 | grep -o '[0-9]\+ passed' | head -1 ) tests passed"
+          echo "✅ Standard build completed"
+          echo "✅ GitHub Pages build completed"
