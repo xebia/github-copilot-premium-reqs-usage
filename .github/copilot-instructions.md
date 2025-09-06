@@ -170,3 +170,4 @@ When working on this project, you'll likely need to:
 - CSV files are processed locally (not uploaded to servers)
 - The app is designed for periodic usage reporting, not real-time monitoring
 - **Minimal Changes**: Only modify files that are absolutely necessary to implement the requested features - avoid unnecessary changes to unrelated files
+- When you need to make changes and send in a PR, run the application with the test data, and provide relevant screenshots in the PR that show the changes
