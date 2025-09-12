@@ -80,11 +80,11 @@ describe('Model Summary Total Row', () => {
     const cells = totalRow?.querySelectorAll('td');
     expect(cells).toHaveLength(6);
     
-    // Check the total values in the cells
+    // Check the total values in the cells - use dynamic expectations to match locale formatting
     expect(cells?.[0]?.textContent).toBe('Total');
-    expect(cells?.[1]?.textContent).toBe('1,500');
-    expect(cells?.[2]?.textContent).toBe('1,200');
-    expect(cells?.[3]?.textContent).toBe('300');
+    expect(cells?.[1]?.textContent).toBe(expectedTotalRequests.toLocaleString());
+    expect(cells?.[2]?.textContent).toBe(expectedCompliantRequests.toLocaleString());
+    expect(cells?.[3]?.textContent).toBe(expectedExceedingRequests.toLocaleString());
     expect(cells?.[4]?.textContent).toBe('—');
     expect(cells?.[5]?.textContent).toBe('—');
   });
