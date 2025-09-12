@@ -1,7 +1,8 @@
 import React from "react";
 import { Calendar } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MonthOption, getMonthCoverage, CopilotUsageData } from "@/lib/utils";
+import { getMonthCoverage, CopilotUsageData } from "@/lib/utils";
+import { MonthOption, MonthCoverage } from "@/types/month";
 
 interface MonthSelectorProps {
   availableMonths: MonthOption[];
@@ -12,8 +13,32 @@ interface MonthSelectorProps {
 }
 
 /**
+ * Determines the appropriate badge text and style for a month
+ */
+function getMonthBadgeInfo(coverage: MonthCoverage, selectedMonth: string): { text: string; className: string } {
+  if (coverage.isCurrentMonth) {
+    return { text: 'Current Month', className: 'month-badge--current' };
+  }
+  
+  // Calculate how many months ago this was
+  const now = new Date();
+  const [year, month] = selectedMonth.split('-').map(Number);
+  const monthDate = new Date(year, month - 1, 1);
+  const currentDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  const monthsDiff = (currentDate.getFullYear() - monthDate.getFullYear()) * 12 + 
+                     (currentDate.getMonth() - monthDate.getMonth());
+  
+  if (monthsDiff === 1) {
+    return { text: 'Previous Month', className: 'month-badge--previous' };
+  } else {
+    return { text: `${Math.abs(monthsDiff)} months ago`, className: 'month-badge--historical' };
+  }
+}
+
+/**
  * Month selector component that displays available months in a dropdown
- * Shows current month and previous month options with day coverage info
+ * Shows all available months with day coverage info and appropriate time badges
  */
 export function MonthSelector({ 
   availableMonths, 
@@ -23,7 +48,7 @@ export function MonthSelector({
   data = null
 }: MonthSelectorProps) {
   // Get month coverage info for the selected month
-  const coverage = data && selectedMonth ? getMonthCoverage(data, selectedMonth) : null;
+  const coverage: MonthCoverage | null = data && selectedMonth ? getMonthCoverage(data, selectedMonth) : null;
   
   return (
     <div className="flex items-center gap-3">
@@ -54,11 +79,14 @@ export function MonthSelector({
           <span className="font-medium text-foreground">
             {coverage.daysWithData}/{coverage.totalDays}
           </span>
-          <span
-            className={`month-badge ${coverage.isCurrentMonth ? 'month-badge--current' : 'month-badge--previous'}`}
-          >
-            {coverage.isCurrentMonth ? 'Current Month' : 'Previous Month'}
-          </span>
+          {(() => {
+            const badgeInfo = getMonthBadgeInfo(coverage, selectedMonth);
+            return (
+              <span className={`month-badge ${badgeInfo.className}`}>
+                {badgeInfo.text}
+              </span>
+            );
+          })()}
         </div>
       )}
     </div>

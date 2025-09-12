@@ -196,6 +196,13 @@
   border-color: #d1b3ff; /* --color-accent-3 */
 }
 
+.month-badge--historical {
+  background-color: #f3f4f6; /* Light gray background */
+  color: #6b7280; /* Gray text */
+  border-color: #d1d5db; /* Gray border */
+}
+
+
 /* Xebia action button styles */
 .xebia-action-button {
   display: inline-flex;
