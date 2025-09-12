@@ -122,6 +122,14 @@
   --color-accent-12: #2f0e33;
   --color-accent-contrast: #fff;
 
+  /* Month badge styles */
+  --month-badge-current-bg: var(--color-accent-10);
+  --month-badge-current-text: var(--color-accent-contrast);
+  --month-badge-current-border: var(--color-accent-10);
+  --month-badge-previous-bg: var(--color-accent-2);
+  --month-badge-previous-text: var(--color-accent-11);
+  --month-badge-previous-border: var(--color-accent-3);
+
 
     /* Secondary accent colors */
     --color-accent-secondary-1: var(--slate-dark-1);
@@ -164,4 +172,72 @@
     --color-bg-inset: #000000;
     --color-bg-overlay: var(--color-neutral-3);
   }
+}
+
+/* Month badge component styles - outside #spark-app scope for global access */
+.month-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.month-badge--current {
+  background-color: #4e1b80; /* --color-accent-10 */
+  color: #fff; /* --color-accent-contrast */
+  border-color: #4e1b80; /* --color-accent-10 */
+}
+
+.month-badge--previous {
+  background-color: #e6d6ff; /* --color-accent-2 */
+  color: #3f145a; /* --color-accent-11 */
+  border-color: #d1b3ff; /* --color-accent-3 */
+}
+
+/* Xebia action button styles */
+.xebia-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border-width: 1px;
+  border-style: solid;
+  background-color: #f6f0ff; /* --color-accent-1 */
+  border-color: #d1b3ff; /* --color-accent-3 */
+  color: #3f145a; /* --color-accent-11 */
+}
+
+.xebia-action-button:hover {
+  background-color: #e6d6ff; /* --color-accent-2 */
+  border-color: #bb8fff; /* --color-accent-4 */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.xebia-action-button .value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #7B2FF2; /* --color-accent-7 */
+  transition: color 0.2s ease-in-out;
+}
+
+.xebia-action-button:hover .value {
+  color: #6c28cc; /* --color-accent-8 */
+}
+
+.xebia-action-button .icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: #7B2FF2; /* --color-accent-7 */
+  opacity: 0.6;
+  transition: all 0.2s ease-in-out;
+}
+
+.xebia-action-button:hover .icon {
+  opacity: 1;
+  transform: translateX(0.125rem);
 }

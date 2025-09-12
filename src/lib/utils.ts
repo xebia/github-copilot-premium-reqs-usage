@@ -765,3 +765,95 @@ export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[],
   // Sort by projected total descending (highest projected usage first)
   return projectedUsers.sort((a, b) => b.projectedMonthlyTotal - a.projectedMonthlyTotal);
 }
+
+/**
+ * Month selector interface for representing a month option
+ */
+export interface MonthOption {
+  value: string; // YYYY-MM format
+  label: string; // Display label like "September 2025"
+  isCurrentMonth: boolean;
+}
+
+/**
+ * Extract available months from CSV data
+ * Returns current month and previous month options
+ */
+export function getAvailableMonths(data: CopilotUsageData[]): MonthOption[] {
+  if (!data.length) return [];
+
+  // Get all unique months from the data
+  const monthsSet = new Set<string>();
+  data.forEach(item => {
+    const date = new Date(item.timestamp);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    monthsSet.add(monthKey);
+  });
+
+  const months = Array.from(monthsSet).sort().reverse(); // Most recent first
+  const currentDate = new Date();
+  const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
+  // Convert to MonthOption objects with display labels
+  return months.slice(0, 2).map(monthKey => {
+    const [year, month] = monthKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    return {
+      value: monthKey,
+      label,
+      isCurrentMonth: monthKey === currentMonthKey
+    };
+  });
+}
+
+/**
+ * Filter Copilot usage data by selected month
+ */
+export function filterDataByMonth(data: CopilotUsageData[], selectedMonth: string): CopilotUsageData[] {
+  if (!selectedMonth) return data;
+
+  const [year, month] = selectedMonth.split('-').map(Number);
+  
+  return data.filter(item => {
+    const itemDate = new Date(item.timestamp);
+    return itemDate.getFullYear() === year && itemDate.getMonth() === month - 1;
+  });
+}
+
+/**
+ * Get month coverage info - days with data vs total days in month
+ */
+export function getMonthCoverage(data: CopilotUsageData[], selectedMonth: string): { daysWithData: number; totalDays: number; isCurrentMonth: boolean } {
+  if (!data.length || !selectedMonth) return { daysWithData: 0, totalDays: 0, isCurrentMonth: false };
+
+  const [year, month] = selectedMonth.split('-').map(Number);
+  const currentDate = new Date();
+  const currentMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentMonth = selectedMonth === currentMonthKey;
+
+  // Get total days in the selected month
+  const totalDays = new Date(year, month, 0).getDate();
+
+  // Get unique days with data in the selected month
+  const daysWithData = new Set(
+    data
+      .filter(item => {
+        const itemDate = new Date(item.timestamp);
+        return itemDate.getFullYear() === year && itemDate.getMonth() === month - 1;
+      })
+      .map(item => new Date(item.timestamp).getDate())
+  ).size;
+
+  return { daysWithData, totalDays, isCurrentMonth };
+}
+
+/**
+ * Month selector interface for representing a month option
+ */
+export interface MonthOption {
+  value: string; // YYYY-MM format
+  label: string; // Display label like "September 2025"
+  isCurrentMonth: boolean;
+}
