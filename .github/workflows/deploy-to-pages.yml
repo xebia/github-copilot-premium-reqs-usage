@@ -1,9 +1,15 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Runs on pushes to main branch for deployment (only when code changes)
+  # Runs on pushes to any branch to validate build (only when code changes)
   push:
-    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+  
+  # Runs on pull requests to validate build (only when code changes)
+  pull_request:
     paths-ignore:
       - '**.md'
       - 'LICENSE'
@@ -18,9 +24,9 @@ permissions:
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
+# Allow only one concurrent deployment per branch
 concurrency:
-  group: "pages-deployment"
+  group: "pages-${{ github.head_ref || github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -51,8 +57,10 @@ jobs:
         with:
           path: './dist'
 
-  # Deployment job - only runs on main branch
+  # Deployment job
   deploy:
+    # Only deploy on main branch
+    # if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
