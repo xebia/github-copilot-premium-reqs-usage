@@ -1,0 +1,14 @@
+# CODEOWNERS file for github-copilot-premium-reqs-usage
+#
+# This file defines code ownership for the repository.
+# Code owners are automatically requested for review when someone opens a pull request that modifies code that they own.
+#
+# More info: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global rule - all files are owned by the main contributors
+* @rajbos
+
+# Specific rules can be added below for different paths if needed
+# Example:
+# /src/ @rajbos
+# /docs/ @rajbos
