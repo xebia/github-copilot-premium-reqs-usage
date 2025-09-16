@@ -24,6 +24,7 @@ import {
   PowerUserDailyBreakdown,
   ExceededRequestDetail,
   ProjectedUserData,
+  MonthOption,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -40,12 +41,18 @@ import {
   getTotalRequestsForUsersExceedingQuota,
   getProjectedUsersExceedingQuota,
   getProjectedUsersExceedingQuotaDetails,
+  getAvailableMonths,
+  filterDataByMonth,
   EXCESS_REQUEST_COST
 } from "@/lib/utils";
+import { MonthSelector } from "@/components/MonthSelector";
 
 function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
   const [data, setData] = useState<CopilotUsageData[] | null>(null);
+  const [rawData, setRawData] = useState<CopilotUsageData[] | null>(null); // Store original unfiltered data
+  const [availableMonths, setAvailableMonths] = useState<MonthOption[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [aggregatedData, setAggregatedData] = useState<AggregatedData[]>([]);
   const [uniqueModels, setUniqueModels] = useState<string[]>([]);
   const [modelSummary, setModelSummary] = useState<ModelUsageSummary[]>([]);
@@ -81,6 +88,67 @@ function App() {
       setProjectedUsersData(projectedDetails);
     }
   }, [selectedPlan, data]);
+
+  // Reprocess data when month selection changes
+  useEffect(() => {
+    if (rawData && selectedMonth) {
+      processDataForMonth(rawData, selectedMonth);
+    }
+  }, [selectedMonth, rawData, selectedPlan]);
+
+  /**
+   * Process data for a specific month and update all derived state
+   * This function aggregates and processes data for the selected month only
+   */
+  const processDataForMonth = useCallback((rawData: CopilotUsageData[], month: string) => {
+    // Filter data by selected month
+    const filteredData = filterDataByMonth(rawData, month);
+    setData(filteredData);
+
+    // Get unique models from filtered data
+    const models = Array.from(new Set(filteredData.map(item => item.model)));
+    setUniqueModels(models);
+    
+    // Aggregate data by day and model for the selected month
+    const aggregated = aggregateDataByDay(filteredData);
+    setAggregatedData(aggregated);
+    
+    // Get model usage summary for the selected month
+    const summary = getModelUsageSummary(filteredData);
+    setModelSummary(summary);
+    
+    // Get daily model data for bar chart for the selected month
+    const dailyData = getDailyModelData(filteredData);
+    setDailyModelData(dailyData);
+    
+    // Get power users data for the selected month
+    const powerUsers = getPowerUsers(filteredData);
+    setPowerUserSummary(powerUsers);
+    
+    // Get power user daily breakdown for the stacked bar chart for the selected month
+    const powerUserNames = powerUsers.powerUsers.map(user => user.user);
+    const powerUserBreakdown = getPowerUserDailyBreakdown(filteredData, powerUserNames);
+    setPowerUserDailyBreakdown(powerUserBreakdown);
+    
+    // Get count of users exceeding quota for top bar display for the selected month
+    const exceedingUsersCount = getUniqueUsersExceedingQuota(filteredData, selectedPlan);
+    setUsersExceedingQuota(exceedingUsersCount);
+    
+    // Get projected count of users who will exceed quota by month-end for the selected month
+    const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(filteredData, selectedPlan);
+    setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
+    
+    // Get projected users details for the selected month
+    const projectedDetails = getProjectedUsersExceedingQuotaDetails(filteredData, selectedPlan);
+    setProjectedUsersData(projectedDetails);
+    
+    // Get the last date available in the filtered CSV for the selected month
+    const lastDate = getLastDateFromData(filteredData);
+    setLastDateAvailable(lastDate);
+    
+    // Reset selected power user when month changes
+    setSelectedPowerUser(null);
+  }, [selectedPlan]);
   
   const handlePowerUserSelect = useCallback((userName: string | null) => {
     setSelectedPowerUser(userName);
@@ -136,54 +204,25 @@ function App() {
         }
         
         const parsedData = parseCSV(csvContent);
-        setData(parsedData);
         
-        // Get unique models
-        const models = Array.from(new Set(parsedData.map(item => item.model)));
-        setUniqueModels(models);
+        // Store raw unfiltered data
+        setRawData(parsedData);
         
-        // Aggregate data by day and model
-        const aggregated = aggregateDataByDay(parsedData);
-        setAggregatedData(aggregated);
+        // Extract available months (current and previous month)
+        const months = getAvailableMonths(parsedData);
+        setAvailableMonths(months);
         
-        // Get model usage summary
-        const summary = getModelUsageSummary(parsedData);
-        setModelSummary(summary);
+        // Auto-select current month if available, otherwise select the first (most recent) month
+        const defaultMonth = months.find(m => m.isCurrentMonth)?.value || months[0]?.value || '';
+        setSelectedMonth(defaultMonth);
         
-        // Get daily model data for bar chart
-        const dailyData = getDailyModelData(parsedData);
-        setDailyModelData(dailyData);
-        
-        // Get power users data
-        const powerUsers = getPowerUsers(parsedData);
-        setPowerUserSummary(powerUsers);
-        
-        // Get power user daily breakdown for the stacked bar chart
-        const powerUserNames = powerUsers.powerUsers.map(user => user.user);
-        const powerUserBreakdown = getPowerUserDailyBreakdown(parsedData, powerUserNames);
-        setPowerUserDailyBreakdown(powerUserBreakdown);
-        
-        // Get count of users exceeding quota for top bar display
-        const exceedingUsersCount = getUniqueUsersExceedingQuota(parsedData, selectedPlan);
-        setUsersExceedingQuota(exceedingUsersCount);
-        
-        // Get projected count of users who will exceed quota by month-end
-        const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(parsedData, selectedPlan);
-        setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
-        
-        // Get projected users details
-        const projectedDetails = getProjectedUsersExceedingQuotaDetails(parsedData, selectedPlan);
-        setProjectedUsersData(projectedDetails);
-        
-        // Get the last date available in the CSV
-        const lastDate = getLastDateFromData(parsedData);
-        setLastDateAvailable(lastDate);
-        
-        // Reset selected power user when new data is loaded
-        setSelectedPowerUser(null);
+        // Process data for the default selected month
+        if (defaultMonth) {
+          processDataForMonth(parsedData, defaultMonth);
+        }
         
         setIsProcessing(false);
-        toast.success(`Loaded ${parsedData.length} records successfully`);
+        toast.success(`Loaded ${parsedData.length.toLocaleString()} records successfully`);
       } catch (error) {
         // Provide user-friendly error messages  
         let errorMessage = "Failed to parse CSV file. Please check the format.";
@@ -217,6 +256,9 @@ function App() {
         setIsProcessing(false);
         toast.error(errorMessage);
         setData(null);
+        setRawData(null);
+        setAvailableMonths([]);
+        setSelectedMonth('');
         setAggregatedData([]);
         setModelSummary([]);
         setDailyModelData([]);
@@ -229,7 +271,7 @@ function App() {
     };
     
     reader.readAsText(file);
-  }, []);
+  }, [processDataForMonth]);
   
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (isProcessing) return;
@@ -557,7 +599,20 @@ function App() {
       {data && data.length > 0 && (
         <div className="space-y-8">
           <div>
-            <h2 className="text-2xl font-semibold mb-2">Usage Statistics</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Usage Statistics</h2>
+              </div>
+              <div className="flex items-center gap-4">
+                <MonthSelector
+                  availableMonths={availableMonths}
+                  selectedMonth={selectedMonth}
+                  onMonthChange={setSelectedMonth}
+                  disabled={isProcessing}
+                  data={rawData}
+                />
+              </div>
+            </div>
             <Separator className="mb-4" />
             <div className="mb-4">
               <Card>
@@ -588,37 +643,37 @@ function App() {
                       </span>
                     </div>
                     <div 
-                      className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-orange-200 hover:border-orange-300 hover:shadow-sm bg-orange-25 dark:bg-orange-950/10"
+                      className="xebia-action-button"
                       onClick={() => setShowProjectedUsersDialog(true)}
                       title="Click to see the users projected to exceed quota"
                     >
                       <span className="text-sm text-muted-foreground">Projected to Exceed by Month-End:</span>
-                      <span className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors">
+                      <span className="value">
                         {projectedUsersExceedingQuota.toLocaleString()}
                       </span>
-                      <ChevronRight className="h-3 w-3 text-orange-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                      <ChevronRight className="icon" />
                     </div>
                     <div 
-                      className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-orange-200 hover:border-orange-300 hover:shadow-sm bg-orange-25 dark:bg-orange-950/10"
+                      className="xebia-action-button"
                       onClick={() => setShowPotentialCostDetails(true)}
                       title="Click to see cost breakdown"
                     >
                       <span className="text-sm text-muted-foreground">Potential Cost:</span>
-                      <span className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors">
+                      <span className="value">
                         ${(data.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </span>
-                      <ChevronRight className="h-3 w-3 text-orange-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                      <ChevronRight className="icon" />
                     </div>
                     {powerUserSummary && (
                       <Sheet>
                         <SheetTrigger asChild>
                           <div 
-                            className="inline-flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 rounded-md px-2 py-1 group border border-blue-200 hover:border-blue-300 hover:shadow-sm bg-blue-25 dark:bg-blue-950/10"
+                            className="xebia-action-button"
                             title="Click to view power users analysis"
                           >
                             <span className="text-sm text-muted-foreground">Power Users:</span>
-                            <span className="text-lg font-bold text-blue-600 group-hover:text-blue-700 transition-colors">{powerUserSummary.totalPowerUsers}</span>
-                            <ChevronRight className="h-3 w-3 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                            <span className="value">{powerUserSummary.totalPowerUsers}</span>
+                            <ChevronRight className="icon" />
                           </div>
                         </SheetTrigger>
                             <SheetContent side="bottom" className="h-[90vh] max-w-[90%] mx-auto overflow-y-auto">

@@ -765,3 +765,7 @@ export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[],
   // Sort by projected total descending (highest projected usage first)
   return projectedUsers.sort((a, b) => b.projectedMonthlyTotal - a.projectedMonthlyTotal);
 }
+
+// Re-export month utilities for backward compatibility
+export { getAvailableMonths, filterDataByMonth, getMonthCoverage } from './month-utils';
+export type { MonthOption } from '../types/month';
