@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, DragEvent, useEffect } from "react";
+import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
 import { UserSquare, ChevronRight, Shield } from "lucide-react";
 import { toast, Toaster } from "sonner";
@@ -25,6 +25,7 @@ import {
   ExceededRequestDetail,
   ProjectedUserData,
   MonthOption,
+  UserAnalysisData,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -43,9 +44,11 @@ import {
   getProjectedUsersExceedingQuotaDetails,
   getAvailableMonths,
   filterDataByMonth,
+  getUserAnalysisData,
   EXCESS_REQUEST_COST
 } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
+import { UserSearch } from "@/components/UserSearch";
 
 function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
@@ -73,6 +76,8 @@ function App() {
   const [showPotentialCostDetails, setShowPotentialCostDetails] = useState(false);
   const [showProjectedUsersDialog, setShowProjectedUsersDialog] = useState(false);
   const [projectedUsersData, setProjectedUsersData] = useState<ProjectedUserData[]>([]);
+  const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
+  const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Recalculate users exceeding quota when plan selection changes
@@ -86,8 +91,21 @@ function App() {
       
       const projectedDetails = getProjectedUsersExceedingQuotaDetails(data, selectedPlan);
       setProjectedUsersData(projectedDetails);
+      
+      // Update user analysis data if a user is selected
+      if (selectedSearchUser) {
+        const analysisData = getUserAnalysisData(data, selectedSearchUser);
+        setUserAnalysisData(analysisData);
+      }
     }
-  }, [selectedPlan, data]);
+  }, [selectedPlan, data, selectedSearchUser]);
+
+  // Get display data - either filtered by user or all data
+  const displayData = useMemo(() => {
+    if (!data) return null;
+    if (!selectedSearchUser) return data;
+    return data.filter(item => item.user === selectedSearchUser);
+  }, [data, selectedSearchUser]);
 
   // Reprocess data when month selection changes
   useEffect(() => {
@@ -95,6 +113,52 @@ function App() {
       processDataForMonth(rawData, selectedMonth);
     }
   }, [selectedMonth, rawData, selectedPlan]);
+  
+  // Reprocess display data when user selection changes
+  useEffect(() => {
+    if (displayData && displayData.length > 0) {
+      // Get unique models from display data
+      const models = Array.from(new Set(displayData.map(item => item.model)));
+      setUniqueModels(models);
+      
+      // Aggregate data by day and model for display data
+      const aggregated = aggregateDataByDay(displayData);
+      setAggregatedData(aggregated);
+      
+      // Get model usage summary for display data
+      const summary = getModelUsageSummary(displayData);
+      setModelSummary(summary);
+      
+      // Get daily model data for bar chart for display data
+      const dailyData = getDailyModelData(displayData);
+      setDailyModelData(dailyData);
+      
+      // Get power users data for display data
+      const powerUsers = getPowerUsers(displayData);
+      setPowerUserSummary(powerUsers);
+      
+      // Get power user daily breakdown for display data
+      const powerUserNames = powerUsers.powerUsers.map(user => user.user);
+      const powerUserBreakdown = getPowerUserDailyBreakdown(displayData, powerUserNames);
+      setPowerUserDailyBreakdown(powerUserBreakdown);
+      
+      // Get count of users exceeding quota for display data
+      const exceedingUsersCount = getUniqueUsersExceedingQuota(displayData, selectedPlan);
+      setUsersExceedingQuota(exceedingUsersCount);
+      
+      // Get projected count of users who will exceed quota by month-end for display data
+      const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(displayData, selectedPlan);
+      setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
+      
+      // Get projected users details for display data
+      const projectedDetails = getProjectedUsersExceedingQuotaDetails(displayData, selectedPlan);
+      setProjectedUsersData(projectedDetails);
+      
+      // Get the last date available in the display data
+      const lastDate = getLastDateFromData(displayData);
+      setLastDateAvailable(lastDate);
+    }
+  }, [displayData, selectedPlan]);
 
   /**
    * Process data for a specific month and update all derived state
@@ -148,11 +212,27 @@ function App() {
     
     // Reset selected power user when month changes
     setSelectedPowerUser(null);
-  }, [selectedPlan]);
+    
+    // Reset selected search user when month changes and recalculate analysis
+    if (selectedSearchUser) {
+      const analysisData = getUserAnalysisData(filteredData, selectedSearchUser);
+      setUserAnalysisData(analysisData);
+    }
+  }, [selectedPlan, selectedSearchUser]);
   
   const handlePowerUserSelect = useCallback((userName: string | null) => {
     setSelectedPowerUser(userName);
   }, []);
+
+  const handleSearchUserSelect = useCallback((userName: string | null) => {
+    setSelectedSearchUser(userName);
+    if (userName && data) {
+      const analysisData = getUserAnalysisData(data, userName);
+      setUserAnalysisData(analysisData);
+    } else {
+      setUserAnalysisData(null);
+    }
+  }, [data]);
 
   // Generate filtered power user daily breakdown based on selected user
   const getFilteredPowerUserBreakdown = useCallback(() => {
@@ -596,12 +676,24 @@ function App() {
         </Card>
       )}
       
-      {data && data.length > 0 && (
+      {displayData && displayData.length > 0 && (
         <div className="space-y-8">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-2xl font-semibold mb-2">Usage Statistics</h2>
+                <h2 className="text-2xl font-semibold mb-2">
+                  Usage Statistics
+                  {selectedSearchUser && (
+                    <span className="ml-2 text-lg font-medium text-blue-600">
+                      - {selectedSearchUser}
+                    </span>
+                  )}
+                </h2>
+                {selectedSearchUser && (
+                  <p className="text-sm text-muted-foreground">
+                    Showing data filtered for selected user. All panels below reflect this user's activity only.
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 <MonthSelector
@@ -614,6 +706,135 @@ function App() {
               </div>
             </div>
             <Separator className="mb-4" />
+            
+            {/* User Analysis Section */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-semibold mb-2">User Analysis</h2>
+                  <p className="text-muted-foreground">
+                    {selectedSearchUser 
+                      ? `Currently viewing data for ${selectedSearchUser}. All panels are filtered to show only this user's activity.`
+                      : "Search for a specific user to view their detailed usage statistics"
+                    }
+                  </p>
+                </div>
+                {selectedSearchUser && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSearchUserSelect(null)}
+                    className="ml-4"
+                  >
+                    View All Users
+                  </Button>
+                )}
+              </div>
+              <div className="mb-4">
+                <UserSearch
+                  data={data}
+                  selectedUser={selectedSearchUser}
+                  onUserChange={handleSearchUserSelect}
+                  disabled={isProcessing}
+                />
+              </div>
+              
+              {userAnalysisData && (
+                <Card>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Analysis for {userAnalysisData.user}</h3>
+                    </div>
+                    
+                    {/* User Statistics Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div>
+                        <div className="text-sm text-muted-foreground">Total Requests</div>
+                        <div className="text-lg font-bold">{userAnalysisData.totalRequests.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Daily Average</div>
+                        <div className="text-lg font-bold">{userAnalysisData.dailyAverage.toLocaleString(undefined, {maximumFractionDigits: 1})}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Models Used</div>
+                        <div className="text-lg font-bold">{userAnalysisData.uniqueModels.length}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Exceeds Free Budget</div>
+                        <div className={`text-lg font-bold ${userAnalysisData.exceedsFreeBudget ? 'text-red-600' : 'text-green-600'}`}>
+                          {userAnalysisData.exceedsFreeBudget ? 'Yes' : 'No'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Weekly Breakdown */}
+                    <div className="mb-4">
+                      <h4 className="text-md font-medium mb-3">Weekly Breakdown (ISO weeks)</h4>
+                      <div className="overflow-auto max-h-60">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Week</TableHead>
+                              <TableHead>Date Range</TableHead>
+                              <TableHead className="text-right">Compliant Requests</TableHead>
+                              <TableHead className="text-right">Exceeding Requests</TableHead>
+                              <TableHead className="text-right">Total Requests</TableHead>
+                              <TableHead>Models Used</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {userAnalysisData.weeklyBreakdown.map((week) => (
+                              <TableRow key={`${week.year}-W${week.week}`}>
+                                <TableCell className="font-medium">
+                                  {week.year}-W{week.week.toString().padStart(2, '0')}
+                                </TableCell>
+                                <TableCell>
+                                  {week.startDate} to {week.endDate}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {week.compliantRequests.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <span className={week.exceedingRequests > 0 ? 'text-red-600 font-medium' : ''}>
+                                    {week.exceedingRequests.toLocaleString()}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {week.totalRequests.toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-1">
+                                    {week.modelsUsed.map((model) => (
+                                      <span key={model} className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                                        {model}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    
+                    {/* Models Used */}
+                    <div>
+                      <h4 className="text-md font-medium mb-3">All Models Used</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {userAnalysisData.uniqueModels.map((model) => (
+                          <span key={model} className="px-3 py-1 bg-secondary text-sm rounded-md">
+                            {model}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+            
+            <Separator className="mb-4" />
             <div className="mb-4">
               <Card>
                 <div className="p-5">
@@ -621,13 +842,13 @@ function App() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Total Requests:</span>
                       <span className="text-lg font-bold">
-                        {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        {displayData.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Unique Users:</span>
                       <span className="text-lg font-bold">
-                        {new Set(data.map(item => item.user)).size.toLocaleString()}
+                        {new Set(displayData.map(item => item.user)).size.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -660,7 +881,7 @@ function App() {
                     >
                       <span className="text-sm text-muted-foreground">Potential Cost:</span>
                       <span className="value">
-                        ${(data.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        ${(displayData.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </span>
                       <ChevronRight className="icon" />
                     </div>
@@ -1004,7 +1225,14 @@ function App() {
             <div className="mb-6">
               <Card className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-md font-medium">Requests per Model</h3>
+                  <h3 className="text-md font-medium">
+                    Requests per Model
+                    {selectedSearchUser && (
+                      <span className="ml-2 text-sm font-normal text-blue-600">
+                        - {selectedSearchUser}
+                      </span>
+                    )}
+                  </h3>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Plan Type:</span>
                     <Select value={selectedPlan} onValueChange={setSelectedPlan}>
@@ -1072,7 +1300,14 @@ function App() {
           
           <div>
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-semibold">Daily Usage Overview</h2>
+              <h2 className="text-2xl font-semibold">
+                Daily Usage Overview
+                {selectedSearchUser && (
+                  <span className="ml-2 text-lg font-medium text-blue-600">
+                    - {selectedSearchUser}
+                  </span>
+                )}
+              </h2>
               {lastDateAvailable && (
                 <div className="text-sm text-muted-foreground">
                   Data available through: <span className="font-medium">{lastDateAvailable}</span>
@@ -1159,7 +1394,14 @@ function App() {
             
             {/* Bar Chart - Requests per Model per Day */}
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-semibold">Requests per Model per Day</h2>
+              <h2 className="text-2xl font-semibold">
+                Requests per Model per Day
+                {selectedSearchUser && (
+                  <span className="ml-2 text-lg font-medium text-blue-600">
+                    - {selectedSearchUser}
+                  </span>
+                )}
+              </h2>
               {lastDateAvailable && (
                 <div className="text-sm text-muted-foreground">
                   Data available through: <span className="font-medium">{lastDateAvailable}</span>
@@ -1245,11 +1487,11 @@ function App() {
             {exceededDetailsData.length > 0 ? (
               <>
                 {/* Summary Card */}
-                {selectedPowerUser && data && (
+                {selectedPowerUser && displayData && (
                   <Card className="p-4">
                     <h3 className="text-md font-medium mb-3">User Summary</h3>
                     {(() => {
-                      const userSummary = getUserExceededRequestSummary(data, selectedPowerUser);
+                      const userSummary = getUserExceededRequestSummary(displayData, selectedPowerUser);
                       return (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div>
