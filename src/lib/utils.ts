@@ -769,3 +769,153 @@ export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[],
 // Re-export month utilities for backward compatibility
 export { getAvailableMonths, filterDataByMonth, getMonthCoverage } from './month-utils';
 export type { MonthOption } from '../types/month';
+
+// User-specific analysis interfaces and functions
+export interface UserWeeklyData {
+  year: number;
+  week: number; // ISO week number
+  startDate: string; // YYYY-MM-DD format
+  endDate: string; // YYYY-MM-DD format
+  compliantRequests: number;
+  exceedingRequests: number;
+  totalRequests: number;
+  modelsUsed: string[];
+}
+
+export interface UserAnalysisData {
+  user: string;
+  totalRequests: number;
+  compliantRequests: number;
+  exceedingRequests: number;
+  exceedsFreeBudget: boolean;
+  uniqueModels: string[];
+  weeklyBreakdown: UserWeeklyData[];
+  dailyAverage: number;
+  firstActivityDate: string;
+  lastActivityDate: string;
+}
+
+/**
+ * Get ISO week number for a given date
+ */
+function getISOWeek(date: Date): { year: number; week: number } {
+  const target = new Date(date.valueOf());
+  const dayNumber = (date.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNumber + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  const week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+  return { year: target.getFullYear(), week };
+}
+
+/**
+ * Get the start and end dates for an ISO week
+ */
+function getISOWeekDates(year: number, week: number): { startDate: Date; endDate: Date } {
+  const jan4 = new Date(year, 0, 4);
+  const startOfWeek = new Date(jan4);
+  startOfWeek.setDate(jan4.getDate() - jan4.getDay() + 1 + (week - 1) * 7);
+  
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  
+  return { startDate: startOfWeek, endDate: endOfWeek };
+}
+
+/**
+ * Get comprehensive analysis data for a specific user
+ */
+export function getUserAnalysisData(data: CopilotUsageData[], username: string): UserAnalysisData | null {
+  if (!data || data.length === 0 || !username) return null;
+  
+  // Filter data for the specific user
+  const userData = data.filter(item => item.user === username);
+  if (userData.length === 0) return null;
+  
+  // Calculate basic statistics
+  const totalRequests = userData.reduce((sum, item) => sum + item.requestsUsed, 0);
+  const compliantRequests = userData
+    .filter(item => !item.exceedsQuota)
+    .reduce((sum, item) => sum + item.requestsUsed, 0);
+  const exceedingRequests = userData
+    .filter(item => item.exceedsQuota)
+    .reduce((sum, item) => sum + item.requestsUsed, 0);
+  const exceedsFreeBudget = exceedingRequests > 0;
+  const uniqueModels = Array.from(new Set(userData.map(item => item.model)));
+  
+  // Calculate date range
+  const dates = userData.map(item => item.timestamp).sort((a, b) => a.getTime() - b.getTime());
+  const firstActivityDate = dates[0].toISOString().split('T')[0];
+  const lastActivityDate = dates[dates.length - 1].toISOString().split('T')[0];
+  
+  // Calculate daily average
+  const daysDiff = Math.ceil((dates[dates.length - 1].getTime() - dates[0].getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const dailyAverage = totalRequests / daysDiff;
+  
+  // Group data by ISO week
+  const weeklyData: Record<string, {
+    year: number;
+    week: number;
+    compliantRequests: number;
+    exceedingRequests: number;
+    modelsUsed: Set<string>;
+  }> = {};
+  
+  userData.forEach(item => {
+    const isoWeek = getISOWeek(item.timestamp);
+    const key = `${isoWeek.year}-W${isoWeek.week.toString().padStart(2, '0')}`;
+    
+    if (!weeklyData[key]) {
+      weeklyData[key] = {
+        year: isoWeek.year,
+        week: isoWeek.week,
+        compliantRequests: 0,
+        exceedingRequests: 0,
+        modelsUsed: new Set()
+      };
+    }
+    
+    if (item.exceedsQuota) {
+      weeklyData[key].exceedingRequests += item.requestsUsed;
+    } else {
+      weeklyData[key].compliantRequests += item.requestsUsed;
+    }
+    weeklyData[key].modelsUsed.add(item.model);
+  });
+  
+  // Convert weekly data to array with proper date ranges
+  const weeklyBreakdown: UserWeeklyData[] = Object.entries(weeklyData)
+    .map(([key, data]) => {
+      const { startDate, endDate } = getISOWeekDates(data.year, data.week);
+      return {
+        year: data.year,
+        week: data.week,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        compliantRequests: data.compliantRequests,
+        exceedingRequests: data.exceedingRequests,
+        totalRequests: data.compliantRequests + data.exceedingRequests,
+        modelsUsed: Array.from(data.modelsUsed).sort()
+      };
+    })
+    .sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return a.week - b.week;
+    });
+  
+  return {
+    user: username,
+    totalRequests,
+    compliantRequests,
+    exceedingRequests,
+    exceedsFreeBudget,
+    uniqueModels,
+    weeklyBreakdown,
+    dailyAverage,
+    firstActivityDate,
+    lastActivityDate
+  };
+}
