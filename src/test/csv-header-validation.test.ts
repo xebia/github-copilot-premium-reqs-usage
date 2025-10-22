@@ -50,16 +50,6 @@ describe('CSV Header Validation', () => {
     )
   })
 
-  it('should validate that headers are present regardless of order (but data parsing expects fixed order)', () => {
-    // Note: The current implementation validates headers are present but still reads data by fixed positions
-    // This test verifies that header validation works, but the data parsing might fail if order is wrong
-    const csvDifferentOrder = `"User","Timestamp","Model","Total Monthly Quota","Requests Used","Exceeds Monthly Quota"
-user1,2024-01-01T00:00:00Z,gpt-4,100,1.5,false`
-
-    // This should not throw a header validation error (headers are all present)
-    // But it may throw a data parsing error since data is in wrong order
-    expect(() => parseCSV(csvDifferentOrder)).toThrow('Invalid timestamp format at line 2')
-  })
 
   it('should handle CSV with mixed case headers and validate correctly', () => {
     const csvMixedCase = `"TIMESTAMP","user","Model","REQUESTS USED","exceeds monthly quota","Total Monthly Quota"

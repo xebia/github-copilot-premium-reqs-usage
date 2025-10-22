@@ -7,7 +7,7 @@ A single-page application that visualizes GitHub Copilot premium request usage d
 Need to analyze the premium requests CSV? 
 I created a SPA with Spark and Coding Agent to display an overview of the Premium Requests CSV that you can currently download (no API yet 😓), so share it where needed! 
  
-Hosted on GitHub Pages: [GitHub Copilot Premium Requests Usage Analyzer](https://devops-actions.github.io/github-copilot-premium-reqs-usage/)
+Hosted on GitHub Pages: [GitHub Copilot Premium Requests Usage Analyzer](https://xebia.github.io/github-copilot-premium-reqs-usage/)
 
 Upload the CSV from the enterprise export (Billing and Licenses → Usage → Export dropdown right top)
  
@@ -53,14 +53,24 @@ Result:
 
 4. Open http://localhost:5000 in your browser
 
+
 ## CSV Format
 
-The application expects a CSV export from GitHub Copilot premium requests with the following format:
+The application accepts either of the following CSV export formats from GitHub Copilot premium requests:
 
+**Original format (until October):**
 ```
 "Timestamp","User","Model","Requests Used","Exceeds Monthly Quota","Total Monthly Quota"
 "2025-06-11T05:13:27.8766440Z","UserName","gpt-4.1-2025-04-14","1","False","Unlimited"
 ```
+
+**New format (starting from October):**
+```
+"date","username","model","quantity","exceeds_quota","total_monthly_quota"
+"2025-06-11","UserName","GPT-5","1","False","300"
+```
+
+> Column order does not matter and extra columns are ignored. Both formats are supported for backward compatibility.
 
 ## Deployment
 

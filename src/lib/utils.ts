@@ -26,98 +26,120 @@ export function parseCSV(csv: string): CopilotUsageData[] {
   if (lines.length < 2) {
     throw new Error('CSV must contain a header row and at least one data row');
   }
-  
-  // Validate header row
-  const headerLine = lines[0];
-  const expectedHeaders = ['Timestamp', 'User', 'Model', 'Requests Used', 'Exceeds Monthly Quota', 'Total Monthly Quota'];
-  
-  // Parse header row to check for expected columns
-  // First, trim any trailing whitespace from the header line
-  const trimmedHeaderLine = headerLine.trim();
-  const headerMatches = trimmedHeaderLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
-  if (!headerMatches || headerMatches.length < 6) {
-    throw new Error('CSV header must contain at least 6 columns');
+
+  // Parse header row and build a mapping from expected field to column index (case-insensitive)
+  const headerLine = lines[0].trim();
+  const headerMatches = headerLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
+  if (!headerMatches) {
+    throw new Error('CSV header could not be parsed');
   }
-  
   const headers = headerMatches.map(m => {
-    // Remove trailing comma if present
     let processed = m.endsWith(',') ? m.slice(0, -1) : m;
-    // Remove surrounding quotes if present
     processed = processed.replace(/^"(.*)"$/, '$1');
-    return processed;
-  }).filter(h => h.trim() !== '').map(h => h.trim()); // Filter empty strings and trim whitespace
-  
-  // Check if all expected headers are present (case-insensitive exact match)
-  const missingHeaders = expectedHeaders.filter(expected => 
-    !headers.some(header => header.toLowerCase() === expected.toLowerCase())
-  );
-  
-  // Log detailed header information for debugging
-  if (missingHeaders.length > 0) {
-    console.log('CSV Header validation failed:');
-    console.log('Expected headers:', expectedHeaders);
-    console.log('Found headers:', headers);
-    console.log('Missing headers:', missingHeaders);
-    headers.forEach((header, i) => {
-      const expectedHeader = expectedHeaders[i];
-      if (expectedHeader) {
-        const matches = header.toLowerCase() === expectedHeader.toLowerCase();
-        console.log(`  Column ${i + 1}: "${header}" ${matches ? '✅' : '❌'} (expected: "${expectedHeader}")`);
-      } else {
-        console.log(`  Column ${i + 1}: "${header}" (extra column)`);
-      }
-    });
+    return processed.trim();
+  });
+
+  // Map new CSV field names to expected fields (case-insensitive)
+  const FIELD_MAP: Record<string, string> = {
+    'date': 'timestamp',
+    'username': 'user',
+    'quantity': 'requestsUsed',
+    'exceeds_quota': 'exceedsQuota',
+    'total_monthly_quota': 'totalMonthlyQuota',
+    // Backward compatibility (old headers)
+    'timestamp': 'timestamp',
+    'user': 'user',
+    'model': 'model',
+    'requests used': 'requestsUsed',
+    'exceeds monthly quota': 'exceedsQuota',
+    'total monthly quota': 'totalMonthlyQuota',
+  };
+
+  // For error messages, map internal field names to original header names
+  const INTERNAL_TO_HEADER: Record<string, string> = {
+    'timestamp': 'Timestamp',
+    'user': 'User',
+    'model': 'Model',
+    'requestsUsed': 'Requests Used',
+    'exceedsQuota': 'Exceeds Monthly Quota',
+    'totalMonthlyQuota': 'Total Monthly Quota',
+  };
+
+  // Build a mapping from expected field to column index (case-insensitive)
+  const fieldToIndex: Partial<Record<keyof CopilotUsageData, number>> = {};
+  headers.forEach((header, idx) => {
+    const mapped = FIELD_MAP[header.toLowerCase()];
+    if (mapped) {
+      fieldToIndex[mapped as keyof CopilotUsageData] = idx;
+    }
+  });
+
+  // Ensure all required fields are present
+  const requiredFields: Array<keyof CopilotUsageData> = [
+    'timestamp', 'user', 'model', 'requestsUsed', 'exceedsQuota', 'totalMonthlyQuota'
+  ];
+  const missingFields = requiredFields.filter(f => fieldToIndex[f] === undefined);
+  if (missingFields.length > 0) {
+    // If all columns are missing, check for too few columns
+    if (headers.length < 6) {
+      throw new Error('CSV header must contain at least 6 columns');
+    }
+    // Compose error message with original header names
+    const missingHeaderNames = missingFields.map(f => INTERNAL_TO_HEADER[f]);
+    throw new Error(`CSV is missing required columns: ${missingHeaderNames.join(', ')}. Expected columns: ${Object.values(INTERNAL_TO_HEADER).join(', ')}`);
   }
-  
-  if (missingHeaders.length > 0) {
-    throw new Error(`CSV is missing required columns: ${missingHeaders.join(', ')}. Expected columns: ${expectedHeaders.join(', ')}`);
-  }
-  
-  // Skip the header row and process data rows
+
+  // Parse data rows
   return lines.slice(1).map((line, index) => {
-    // Handle quoted CSV properly - trim any trailing whitespace first
     const trimmedLine = line.trim();
-    const matches = trimmedLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
-    
-    if (!matches || matches.length < 6) {
-      throw new Error(`Invalid CSV row format at line ${index + 2}: expected 6 columns, got ${matches ? matches.length : 0}`);
+    if (!trimmedLine) return null;
+  const matches = trimmedLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
+    if (!matches) {
+      throw new Error(`Invalid CSV row format at line ${index + 2}`);
     }
-    
-    const values = matches.map(m => {
-      // Remove trailing comma if present
-      let processed = m.endsWith(',') ? m.slice(0, -1) : m;
-      // Remove surrounding quotes if present
-      processed = processed.replace(/^"(.*)"$/, '$1');
-      return processed;
-    }).filter(v => v.trim() !== ''); // Filter out empty values
-    
-    // Validate timestamp
-    const timestamp = new Date(values[0]);
+    // Pad matches to header length (in case of trailing commas)
+    while (matches.length < headers.length) matches.push('');
+
+    // Extract values by mapped index
+    const getValue = (field: keyof CopilotUsageData) => {
+      const idx = fieldToIndex[field]!;
+      let val = matches[idx] || '';
+      val = val.endsWith(',') ? val.slice(0, -1) : val;
+      val = val.replace(/^"(.*)"$/, '$1');
+      return val.trim();
+    };
+
+    // Validate and parse fields
+    const timestampStr = getValue('timestamp');
+    const timestamp = new Date(timestampStr);
     if (isNaN(timestamp.getTime())) {
-      throw new Error(`Invalid timestamp format at line ${index + 2}: "${values[0]}"`);
+      throw new Error(`Invalid timestamp format at line ${index + 2}: "${timestampStr}"`);
     }
-    
-    // Validate requests used
-    const requestsUsed = parseFloat(values[3]);
+
+    const user = getValue('user');
+    const model = getValue('model');
+    const requestsUsedStr = getValue('requestsUsed');
+    const requestsUsed = parseFloat(requestsUsedStr);
     if (isNaN(requestsUsed)) {
-      throw new Error(`Invalid requests used value at line ${index + 2}: "${values[3]}" must be a number`);
+      throw new Error(`Invalid requests used value at line ${index + 2}: "${requestsUsedStr}" must be a number`);
     }
-    
-    // Validate exceeds quota
-    const exceedsQuotaValue = values[4].toLowerCase();
+
+    const exceedsQuotaValue = getValue('exceedsQuota').toLowerCase();
     if (exceedsQuotaValue !== 'true' && exceedsQuotaValue !== 'false') {
-      throw new Error(`Invalid exceeds quota value at line ${index + 2}: "${values[4]}" must be "true" or "false"`);
+      throw new Error(`Invalid exceeds quota value at line ${index + 2}: "${getValue('exceedsQuota')}" must be "true" or "false"`);
     }
-    
+
+    const totalMonthlyQuota = getValue('totalMonthlyQuota');
+
     return {
       timestamp,
-      user: values[1],
-      model: values[2],
+      user,
+      model,
       requestsUsed,
-      exceedsQuota: exceedsQuotaValue === "true",
-      totalMonthlyQuota: values[5],
+      exceedsQuota: exceedsQuotaValue === 'true',
+      totalMonthlyQuota,
     };
-  });
+  }).filter(Boolean) as CopilotUsageData[];
 }
 
 export interface ModelUsageSummary {
