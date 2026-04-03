@@ -4,7 +4,7 @@ import { UserSquare, ChevronRight, ChevronLeft, Shield } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, Cell
+  BarChart, Bar, Cell, ScatterChart, Scatter, ZAxis
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   ProjectedUserData,
   MonthOption,
   UserAnalysisData,
+  UserBehaviorDataPoint,
   aggregateDataByDay, 
   parseCSV,
   getModelUsageSummary,
@@ -45,6 +46,7 @@ import {
   getAvailableMonths,
   filterDataByMonth,
   getUserAnalysisData,
+  getUserBehaviorData,
   EXCESS_REQUEST_COST
 } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
@@ -58,6 +60,28 @@ const MODEL_COLORS = [
   "#1ABC9C", // Turquoise
 ];
 const OTHER_COLOR = "#94A3B8"; // Slate gray for Other
+const BEHAVIOR_COLORS: Record<string, string> = {
+  'Steady Users': '#16A34A',
+  'Low Engagement Users': '#64748B',
+  'Burst Users': '#DC2626',
+  'Model Explorers': '#0EA5E9',
+  'Model Loyalists': '#D97706',
+  'Mixed Behavior': '#7C3AED',
+};
+
+type BehaviorScatterPoint = UserBehaviorDataPoint & {
+  scatterX: number;
+  scatterY: number;
+};
+
+function getUserJitter(user: string): number {
+  let hash = 0;
+  for (let i = 0; i < user.length; i++) {
+    hash = (hash * 31 + user.charCodeAt(i)) >>> 0;
+  }
+  // Deterministic range [-0.35, +0.35]
+  return ((hash % 701) - 350) / 1000;
+}
 
 function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
@@ -480,6 +504,25 @@ function App() {
   }, [dailyModelData, top5Models]);
 
   const modelBarData = useMemo(() => barChartData(), [barChartData]);
+
+  const behaviorData = useMemo<BehaviorScatterPoint[]>(() => {
+    if (!displayData || !displayData.length) return [];
+    return getUserBehaviorData(displayData, selectedPlan).map((item) => {
+      const jitter = getUserJitter(item.user);
+      return {
+        ...item,
+        scatterX: Math.max(0, Math.min(100, item.activeDaysPct + jitter)),
+        scatterY: Math.max(0, item.utilizationPct + jitter),
+      };
+    });
+  }, [displayData, selectedPlan]);
+
+  const behaviorSegmentCounts = useMemo(() => {
+    return behaviorData.reduce((acc, userPoint) => {
+      acc[userPoint.behaviorSegment] = (acc[userPoint.behaviorSegment] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [behaviorData]);
 
   const modelBarYAxis = useMemo(() => {
     if (!modelBarData.length) {
@@ -1737,6 +1780,94 @@ function App() {
                   ))}
                 </BarChart>
               </ChartContainer>
+            </div>
+
+            
+
+            {/* Behavior Segmentation Scatter */}
+            <div className="flex justify-between items-center mb-2 mt-8">
+              <h2 className="text-2xl font-semibold">
+                User Behavior Segments
+                {selectedSearchUser && (
+                  <span className="ml-2 text-lg font-medium text-blue-600">
+                    - {selectedSearchUser}
+                  </span>
+                )}
+              </h2>
+              <div className="text-sm text-muted-foreground">
+                X: Active Days % of Month, Y: Quota Utilization %
+              </div>
+            </div>
+            <Separator className="mb-6" />
+            <div className="bg-card p-4 rounded-lg border mb-8">
+              <div className="flex flex-wrap gap-2 mb-4">
+                {Object.entries(behaviorSegmentCounts).map(([segment, count]) => (
+                  <div key={segment} className="text-xs px-2.5 py-1 rounded-full border flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: BEHAVIOR_COLORS[segment] || '#7C3AED' }}
+                    />
+                    <span className="font-medium">{segment}:</span>
+                    <span>{count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="h-[460px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis
+                      type="number"
+                      dataKey="scatterX"
+                      name="Active Days %"
+                      tick={{ fill: 'var(--foreground)' }}
+                      tickLine={{ stroke: 'var(--border)' }}
+                      domain={[0, 100]}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="scatterY"
+                      name="Utilization %"
+                      tick={{ fill: 'var(--foreground)' }}
+                      tickLine={{ stroke: 'var(--border)' }}
+                      domain={[0, 'auto']}
+                    />
+                    <ZAxis type="number" dataKey="modelDiversity" range={[80, 420]} />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const point = payload[0].payload as BehaviorScatterPoint;
+                          return (
+                            <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                              <div className="font-medium mb-2">{point.user}</div>
+                              <div className="space-y-1">
+                                <div>Segment: <span className="font-medium">{point.behaviorSegment}</span></div>
+                                <div>Utilization: <span className="font-medium">{point.utilizationPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                                <div>Active Days: <span className="font-medium">{point.activeDaysPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                                <div>Models Used: <span className="font-medium">{point.modelDiversity.toLocaleString()}</span></div>
+                                <div>Top Model Share: <span className="font-medium">{point.topModelSharePct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                                <div>First Week Usage: <span className="font-medium">{(point.frontloadIndex * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                                <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span></div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Scatter name="Users" data={behaviorData}>
+                      {behaviorData.map((point) => (
+                        <Cell
+                          key={point.user}
+                          fill={BEHAVIOR_COLORS[point.behaviorSegment] || '#7C3AED'}
+                        />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>

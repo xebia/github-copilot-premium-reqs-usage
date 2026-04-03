@@ -817,6 +817,155 @@ export interface UserAnalysisData {
   lastActivityDate: string;
 }
 
+export type BehaviorSegment =
+  | 'Steady Users'
+  | 'Low Engagement Users'
+  | 'Burst Users'
+  | 'Model Explorers'
+  | 'Model Loyalists'
+  | 'Mixed Behavior';
+
+export interface UserBehaviorDataPoint {
+  user: string;
+  behaviorSegment: BehaviorSegment;
+  utilizationPct: number;
+  activeDaysPct: number;
+  modelDiversity: number;
+  topModelSharePct: number;
+  frontloadIndex: number;
+  totalRequests: number;
+}
+
+function getStandardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Build behavior segmentation points for each user in a month.
+ * The output is optimized for scatter charts (engagement vs utilization).
+ */
+export function getUserBehaviorData(
+  data: CopilotUsageData[],
+  plan: string = COPILOT_PLANS.BUSINESS
+): UserBehaviorDataPoint[] {
+  if (!data.length) return [];
+
+  const planLimit = PLAN_MONTHLY_LIMITS[plan] || PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+  const lastTimestamp = Math.max(...data.map(item => item.timestamp.getTime()));
+  const referenceDate = new Date(lastTimestamp);
+  const totalDaysInMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    0
+  ).getDate();
+
+  const users = new Map<string, {
+    totalRequests: number;
+    dailyTotals: Map<string, number>;
+    modelTotals: Map<string, number>;
+    firstWeekRequests: number;
+  }>();
+
+  data.forEach(item => {
+    const date = item.timestamp.toISOString().split('T')[0];
+    const dayOfMonth = item.timestamp.getDate();
+
+    if (!users.has(item.user)) {
+      users.set(item.user, {
+        totalRequests: 0,
+        dailyTotals: new Map<string, number>(),
+        modelTotals: new Map<string, number>(),
+        firstWeekRequests: 0,
+      });
+    }
+
+    const userData = users.get(item.user)!;
+    userData.totalRequests += item.requestsUsed;
+    userData.dailyTotals.set(date, (userData.dailyTotals.get(date) || 0) + item.requestsUsed);
+    userData.modelTotals.set(item.model, (userData.modelTotals.get(item.model) || 0) + item.requestsUsed);
+
+    if (dayOfMonth <= 7) {
+      userData.firstWeekRequests += item.requestsUsed;
+    }
+  });
+
+  const classifyBehavior = (
+    utilizationPct: number,
+    activeDaysPct: number,
+    frontloadIndex: number,
+    dailyVariability: number,
+    modelDiversity: number,
+    topModelSharePct: number
+  ): BehaviorSegment => {
+    if (utilizationPct < 15 && activeDaysPct < 20) return 'Low Engagement Users';
+
+    if (
+      utilizationPct >= 70 &&
+      activeDaysPct >= 45 &&
+      frontloadIndex <= 0.45 &&
+      dailyVariability <= 1.35
+    ) {
+      return 'Steady Users';
+    }
+
+    if (utilizationPct >= 70 && frontloadIndex >= 0.55) {
+      return 'Burst Users';
+    }
+
+    if (modelDiversity >= 4 && topModelSharePct <= 60) {
+      return 'Model Explorers';
+    }
+
+    if (modelDiversity <= 2 && topModelSharePct >= 75) {
+      return 'Model Loyalists';
+    }
+
+    return 'Mixed Behavior';
+  };
+
+  return Array.from(users.entries())
+    .map(([user, userData]) => {
+      const activeDays = userData.dailyTotals.size;
+      const utilizationPct = (userData.totalRequests / planLimit) * 100;
+      const activeDaysPct = (activeDays / totalDaysInMonth) * 100;
+      const frontloadIndex = userData.totalRequests > 0 ? userData.firstWeekRequests / userData.totalRequests : 0;
+
+      const dailySeries = Array.from(userData.dailyTotals.values());
+      const dailyAverage = dailySeries.length
+        ? dailySeries.reduce((sum, value) => sum + value, 0) / dailySeries.length
+        : 0;
+      const dailyVariability = dailyAverage > 0 ? getStandardDeviation(dailySeries) / dailyAverage : 0;
+
+      const modelTotals = Array.from(userData.modelTotals.values());
+      const topModelSharePct = modelTotals.length
+        ? (Math.max(...modelTotals) / userData.totalRequests) * 100
+        : 0;
+      const modelDiversity = userData.modelTotals.size;
+
+      return {
+        user,
+        behaviorSegment: classifyBehavior(
+          utilizationPct,
+          activeDaysPct,
+          frontloadIndex,
+          dailyVariability,
+          modelDiversity,
+          topModelSharePct
+        ),
+        utilizationPct,
+        activeDaysPct,
+        modelDiversity,
+        topModelSharePct,
+        frontloadIndex,
+        totalRequests: userData.totalRequests,
+      };
+    })
+    .sort((a, b) => b.totalRequests - a.totalRequests);
+}
+
 /**
  * Get ISO week number for a given date
  */
