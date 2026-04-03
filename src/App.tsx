@@ -476,35 +476,6 @@ function App() {
       .map(([model]) => model);
   }, [dailyModelData]);
 
-  // Generate bar chart data grouped by date, top 5 models + Other
-  const barChartData = useCallback(() => {
-    if (!dailyModelData.length) return [];
-    
-    const dates = new Set<string>();
-    dailyModelData.forEach(item => dates.add(item.date));
-
-    const groupedByDate: Record<string, any> = {};
-    dates.forEach(date => {
-      groupedByDate[date] = { date };
-      top5Models.forEach(model => { groupedByDate[date][model] = 0; });
-      groupedByDate[date]['Other'] = 0;
-    });
-
-    dailyModelData.forEach(item => {
-      if (top5Models.includes(item.model)) {
-        groupedByDate[item.date][item.model] += item.requests;
-      } else {
-        groupedByDate[item.date]['Other'] += item.requests;
-      }
-    });
-
-    return Object.values(groupedByDate).sort((a: any, b: any) =>
-      a.date.localeCompare(b.date)
-    );
-  }, [dailyModelData, top5Models]);
-
-  const modelBarData = useMemo(() => barChartData(), [barChartData]);
-
   const behaviorData = useMemo<BehaviorScatterPoint[]>(() => {
     if (!displayData || !displayData.length) return [];
     return getUserBehaviorData(displayData, selectedPlan).map((item) => {
@@ -524,51 +495,59 @@ function App() {
     }, {} as Record<string, number>);
   }, [behaviorData]);
 
-  const modelBarYAxis = useMemo(() => {
-    if (!modelBarData.length) {
-      return {
-        domain: [0, 100] as [number, number],
-        ticks: [0, 25, 50, 75, 100],
-      };
-    }
+  // Get all unique models from the data (not just top 5), sorted by total requests (descending)
+  const getAllUniqueModels = useCallback(() => {
+    if (!dailyModelData.length) return [];
+    const totals: Record<string, number> = {};
+    dailyModelData.forEach(item => {
+      totals[item.model] = (totals[item.model] || 0) + item.requests;
+    });
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([model]) => model);
+  }, [dailyModelData]);
 
-    const seriesKeys = [...top5Models, 'Other'];
-    let maxValue = 0;
+  // Get count of models in the "Other" category (not in top 5)
+  const getOtherModelCount = useCallback(() => {
+    const allModels = getAllUniqueModels();
+    return Math.max(0, allModels.length - top5Models.length);
+  }, [getAllUniqueModels, top5Models]);
 
-    modelBarData.forEach((row) => {
-      seriesKeys.forEach((key) => {
-        const value = Number((row as Record<string, unknown>)[key] ?? 0);
-        if (value > maxValue) maxValue = value;
-      });
+  // Generate bar chart data grouped by date, top 5 models + Other
+  const barChartData = useCallback(() => {
+    if (!dailyModelData.length) return [];
+    
+    const dates = new Set<string>();
+    dailyModelData.forEach(item => dates.add(item.date));
+
+    const otherCount = getOtherModelCount();
+    const otherLabel = otherCount > 0 ? `Other (${otherCount})` : 'Other';
+
+    const groupedByDate: Record<string, any> = {};
+    dates.forEach(date => {
+      groupedByDate[date] = { date };
+      top5Models.forEach(model => { groupedByDate[date][model] = 0; });
+      groupedByDate[date][otherLabel] = 0;
     });
 
-    if (maxValue <= 0) {
-      return {
-        domain: [0, 100] as [number, number],
-        ticks: [0, 25, 50, 75, 100],
-      };
-    }
+    dailyModelData.forEach(item => {
+      if (top5Models.includes(item.model)) {
+        groupedByDate[item.date][item.model] += item.requests;
+      } else {
+        groupedByDate[item.date][otherLabel] += item.requests;
+      }
+    });
 
-    // Target ~4 major intervals and round to cleaner, human-friendly 500-sized steps.
-    const roughStep = maxValue / 4;
-    const step = Math.max(100, Math.ceil(roughStep / 500) * 500);
-    const yMax = Math.ceil(maxValue / step) * step;
-
-    const ticks: number[] = [];
-    for (let value = 0; value <= yMax; value += step) {
-      ticks.push(value);
-    }
-
-    return {
-      domain: [0, yMax] as [number, number],
-      ticks,
-    };
-  }, [modelBarData, top5Models]);
+    return Object.values(groupedByDate).sort((a: any, b: any) =>
+      a.date.localeCompare(b.date)
+    );
+  }, [dailyModelData, top5Models, getOtherModelCount]);
 
   // Get top 5 model names + Other for bar chart
   const getUniqueModelsForBarChart = useCallback(() => {
-    return [...top5Models, 'Other'];
-  }, [top5Models]);
+    const otherCount = getOtherModelCount();
+    return [...top5Models, otherCount > 0 ? `Other (${otherCount})` : 'Other'];
+  }, [top5Models, getOtherModelCount]);
   
   // Generate colors for top 5 models + Other in bar chart
   const getModelColors = useCallback(() => {
@@ -576,9 +555,44 @@ function App() {
     top5Models.forEach((model, i) => {
       result[model] = MODEL_COLORS[i % MODEL_COLORS.length];
     });
-    result['Other'] = OTHER_COLOR;
+    const otherCount = getOtherModelCount();
+    const otherLabel = otherCount > 0 ? `Other (${otherCount})` : 'Other';
+    result[otherLabel] = OTHER_COLOR;
     return result;
-  }, [top5Models]);
+  }, [top5Models, getOtherModelCount]);
+
+  // Generate colors for all models (sorted by request amount)
+  const getAllModelColors = useCallback(() => {
+    const allModels = getAllUniqueModels();
+    const result: Record<string, string> = {};
+    allModels.forEach((model, i) => {
+      result[model] = MODEL_COLORS[i % MODEL_COLORS.length];
+    });
+    return result;
+  }, [getAllUniqueModels]);
+
+  // Generate bar chart data grouped by date with all models
+  const allModelsChartData = useCallback(() => {
+    if (!dailyModelData.length) return [];
+    
+    const allModels = getAllUniqueModels();
+    const dates = new Set<string>();
+    dailyModelData.forEach(item => dates.add(item.date));
+
+    const groupedByDate: Record<string, any> = {};
+    dates.forEach(date => {
+      groupedByDate[date] = { date };
+      allModels.forEach(model => { groupedByDate[date][model] = 0; });
+    });
+
+    dailyModelData.forEach(item => {
+      groupedByDate[item.date][item.model] += item.requests;
+    });
+
+    return Object.values(groupedByDate).sort((a: any, b: any) =>
+      a.date.localeCompare(b.date)
+    );
+  }, [dailyModelData, getAllUniqueModels]);
 
   // Compute sorted list of week start dates (ISO string for Monday) present in the data
   const availableWeeks = useMemo(() => {
@@ -661,46 +675,6 @@ function App() {
 
     return `${fmt(startDate)} – ${fmt(endDate)}`;
   }, [selectedWeekDates]);
-
-  const weeklyBarYAxis = useMemo(() => {
-    if (!selectedWeekDailyData.length) {
-      return {
-        domain: [0, 100] as [number, number],
-        ticks: [0, 25, 50, 75, 100],
-      };
-    }
-
-    const seriesKeys = [...top5Models, 'Other'];
-    let maxValue = 0;
-
-    selectedWeekDailyData.forEach((row) => {
-      seriesKeys.forEach((key) => {
-        const value = Number((row as Record<string, unknown>)[key] ?? 0);
-        if (value > maxValue) maxValue = value;
-      });
-    });
-
-    if (maxValue <= 0) {
-      return {
-        domain: [0, 100] as [number, number],
-        ticks: [0, 25, 50, 75, 100],
-      };
-    }
-
-    const roughStep = maxValue / 4;
-    const step = Math.max(100, Math.ceil(roughStep / 500) * 500);
-    const yMax = Math.ceil(maxValue / step) * step;
-
-    const ticks: number[] = [];
-    for (let value = 0; value <= yMax; value += step) {
-      ticks.push(value);
-    }
-
-    return {
-      domain: [0, yMax] as [number, number],
-      ticks,
-    };
-  }, [selectedWeekDailyData, top5Models]);
 
   // Helper function to get plan limit based on selected plan
   const getPlanLimit = useCallback((item: ModelUsageSummary) => {
@@ -1598,11 +1572,89 @@ function App() {
                 </LineChart>
               </ChartContainer>
             </div>
+
+            {/* Bar Chart - Requests per Model per Day (All Models) */}
+            <div className="flex justify-between items-center mb-2 mt-8">
+              <h2 className="text-2xl font-semibold">
+                Requests per Model per Day (All Models)
+                {selectedSearchUser && (
+                  <span className="ml-2 text-lg font-medium text-blue-600">
+                    - {selectedSearchUser}
+                  </span>
+                )}
+              </h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
+            <Separator className="mb-6" />
+            <div className="bg-card p-4 rounded-lg border">
+              <ChartContainer 
+                config={Object.entries(getAllModelColors()).reduce((acc, [model, color]) => {
+                  acc[model] = { color };
+                  return acc;
+                }, {} as Record<string, { color: string }>)}
+                className="h-[500px] w-full"
+              >
+                <BarChart data={allModelsChartData()}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis 
+                    dataKey="date"
+                    tick={{ fill: 'var(--foreground)' }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                    domain={['dataMin', lastDateAvailable || 'dataMax']}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'var(--foreground)' }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="border rounded-lg bg-background shadow-lg p-3">
+                            <div className="font-medium mb-2">{label}</div>
+                            <div className="space-y-2">
+                              {payload.map((entry, index) => (
+                                <div key={`item-${index}`} className="flex justify-between items-center gap-4">
+                                  <div className="flex items-center gap-1.5">
+                                    <div 
+                                      className="w-2 h-2 rounded-full" 
+                                      style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span>{entry.name}:</span>
+                                  </div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  
+                  {/* Generate a bar for each model */}
+                  {getAllUniqueModels().map((model) => (
+                    <Bar
+                      key={model}
+                      dataKey={model}
+                      name={model}
+                      fill={getAllModelColors()[model]}
+                    />
+                  ))}
+                </BarChart>
+              </ChartContainer>
+            </div>
             
-            {/* Bar Chart - Requests per Model per Day */}
+            {/* Bar Chart - Requests per Model per Day (Top 5 Models) */}
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-2xl font-semibold">
-                Requests per Model per Day
+                Requests per Model per Day (Top 5 Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
                     - {selectedSearchUser}
@@ -1624,7 +1676,7 @@ function App() {
                 }, {} as Record<string, { color: string }>)}
                 className="h-[500px] w-full"
               >
-                <BarChart data={modelBarData}>
+                <BarChart data={barChartData()}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                   <XAxis 
                     dataKey="date"
@@ -1633,9 +1685,6 @@ function App() {
                     domain={['dataMin', lastDateAvailable || 'dataMax']}
                   />
                   <YAxis 
-                    domain={modelBarYAxis.domain}
-                    ticks={modelBarYAxis.ticks}
-                    allowDecimals={false}
                     tick={{ fill: 'var(--foreground)' }}
                     tickLine={{ stroke: 'var(--border)' }}
                   />
@@ -1729,9 +1778,6 @@ function App() {
                     interval={0}
                   />
                   <YAxis
-                    domain={weeklyBarYAxis.domain}
-                    ticks={weeklyBarYAxis.ticks}
-                    allowDecimals={false}
                     tick={{ fill: 'var(--foreground)' }}
                     tickLine={{ stroke: 'var(--border)' }}
                   />
@@ -1770,7 +1816,7 @@ function App() {
                     }}
                   />
                   <Legend />
-                  {[...top5Models, 'Other'].map((model) => (
+                  {[...top5Models, getOtherModelCount() > 0 ? `Other (${getOtherModelCount()})` : 'Other'].map((model) => (
                     <Bar
                       key={model}
                       dataKey={model}
