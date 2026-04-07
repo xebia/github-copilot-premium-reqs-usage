@@ -13,7 +13,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
   AggregatedData, 
@@ -23,6 +23,7 @@ import {
   PowerUserSummary,
   PowerUserDailyBreakdown,
   ExceededRequestDetail,
+  ExceededUserSummary,
   ProjectedUserData,
   MonthOption,
   UserAnalysisData,
@@ -40,6 +41,7 @@ import {
   getExceededRequestDetails,
   getUserExceededRequestSummary,
   getUniqueUsersExceedingQuota,
+  getExceededUsersOverview,
   getTotalRequestsForUsersExceedingQuota,
   getProjectedUsersExceedingQuota,
   getProjectedUsersExceedingQuotaDetails,
@@ -502,6 +504,8 @@ function App() {
   const [showPotentialCostDetails, setShowPotentialCostDetails] = useState(false);
   const [showProjectedUsersDialog, setShowProjectedUsersDialog] = useState(false);
   const [projectedUsersData, setProjectedUsersData] = useState<ProjectedUserData[]>([]);
+  const [showExceededUsersOverview, setShowExceededUsersOverview] = useState(false);
+  const [exceededUsersOverviewData, setExceededUsersOverviewData] = useState<ExceededUserSummary[]>([]);
   const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
   const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
   const [expectedExcessCost, setExpectedExcessCost] = useState<number>(0);
@@ -576,6 +580,9 @@ function App() {
       const exceedingUsersCount = getUniqueUsersExceedingQuota(displayData, selectedPlan);
       setUsersExceedingQuota(exceedingUsersCount);
       
+      // Compute exceeded users overview for the overview dialog
+      setExceededUsersOverviewData(getExceededUsersOverview(displayData));
+      
       // Get projected count of users who will exceed quota by month-end for display data
       const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(displayData, selectedPlan);
       setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
@@ -627,6 +634,9 @@ function App() {
     // Get count of users exceeding quota for top bar display for the selected month
     const exceedingUsersCount = getUniqueUsersExceedingQuota(filteredData, selectedPlan);
     setUsersExceedingQuota(exceedingUsersCount);
+    
+    // Compute exceeded users overview for the overview dialog
+    setExceededUsersOverviewData(getExceededUsersOverview(filteredData));
     
     // Get projected count of users who will exceed quota by month-end for the selected month
     const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(filteredData, selectedPlan);
@@ -1355,11 +1365,16 @@ function App() {
                         {uniqueModels.length}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div
+                      className={usersExceedingQuota > 0 ? "xebia-action-button" : "flex items-center gap-2"}
+                      onClick={usersExceedingQuota > 0 ? () => setShowExceededUsersOverview(true) : undefined}
+                      title={usersExceedingQuota > 0 ? "Click to see which users exceeded their quota" : undefined}
+                    >
                       <span className="text-sm text-muted-foreground">Users Exceeding Quota:</span>
-                      <span className="text-lg font-bold text-red-600">
+                      <span className={`${usersExceedingQuota > 0 ? "value text-red-600" : "text-lg font-bold text-green-600"}`}>
                         {usersExceedingQuota.toLocaleString()}
                       </span>
+                      {usersExceedingQuota > 0 && <ChevronRight className="icon" />}
                     </div>
                     <div 
                       className="xebia-action-button"
@@ -2093,6 +2108,95 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Exceeded Users Overview Dialog */}
+      <Dialog open={showExceededUsersOverview} onOpenChange={setShowExceededUsersOverview}>
+        <DialogContent className="w-[98vw] max-w-none max-h-[85vh] overflow-y-auto" style={{ width: '98vw', maxWidth: 'none' }}>
+          <DialogHeader>
+            <DialogTitle>Users Exceeding Quota</DialogTitle>
+            <DialogDescription>
+              All users who have exceeded their quota at least once — including how often, how many exceeded requests they made, and how many other requests they made on the same days.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {exceededUsersOverviewData.length > 0 ? (
+              <>
+                {/* Summary row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className="p-4">
+                    <div className="text-sm text-muted-foreground">Users Exceeded</div>
+                    <div className="text-2xl font-bold text-red-600">{exceededUsersOverviewData.length.toLocaleString()}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-sm text-muted-foreground">Total Exceeded Requests</div>
+                    <div className="text-2xl font-bold text-red-600">
+                      {exceededUsersOverviewData.reduce((s, u) => s + u.totalExceededRequests, 0).toLocaleString()}
+                    </div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-sm text-muted-foreground">Total Days with Exceeded Requests</div>
+                    <div className="text-2xl font-bold">
+                      {exceededUsersOverviewData.reduce((s, u) => s + u.daysExceeded, 0).toLocaleString()}
+                    </div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-sm text-muted-foreground">Avg Days per User</div>
+                    <div className="text-2xl font-bold">
+                      {(exceededUsersOverviewData.reduce((s, u) => s + u.daysExceeded, 0) / exceededUsersOverviewData.length).toFixed(1)}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Per-user table */}
+                <Card className="p-4">
+                  <h3 className="text-md font-medium mb-3">Per-User Breakdown</h3>
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[160px]">User</TableHead>
+                          <TableHead className="text-right min-w-[110px]">Days Exceeded</TableHead>
+                          <TableHead className="text-right min-w-[160px]">Total Exceeded Requests</TableHead>
+                          <TableHead className="text-right min-w-[160px]">Other Requests (Same Days)</TableHead>
+                          <TableHead className="text-right min-w-[160px]">Total Requests (Same Days)</TableHead>
+                          <TableHead className="min-w-[130px]">Worst Day</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {exceededUsersOverviewData.map((row) => (
+                          <TableRow key={row.user}>
+                            <TableCell className="font-medium">{row.user}</TableCell>
+                            <TableCell className="text-right">{row.daysExceeded.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">
+                              {row.totalExceededRequests.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.compliantRequestsOnExceededDays.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {row.totalRequestsOnExceededDays.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              <div className="font-medium">{row.worstDay.date}</div>
+                              <div className="text-muted-foreground text-xs">
+                                {row.worstDay.exceededRequests.toLocaleString()} exceeded of {row.worstDay.totalRequests.toLocaleString()} total
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No users have exceeded their quota in the selected period. 🎉</p>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Exceeded Request Details Dialog */}
       <Dialog open={showExceededDetails} onOpenChange={setShowExceededDetails}>
