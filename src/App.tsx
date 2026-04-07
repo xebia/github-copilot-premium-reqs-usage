@@ -1238,7 +1238,7 @@ function App() {
                     </div>
                     
                     {/* User Statistics Summary */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                       <div>
                         <div className="text-sm text-muted-foreground">Total Requests</div>
                         <div className="text-lg font-bold">{userAnalysisData.totalRequests.toLocaleString()}</div>
@@ -1255,6 +1255,12 @@ function App() {
                         <div className="text-sm text-muted-foreground">Exceeds Free Budget</div>
                         <div className={`text-lg font-bold ${userAnalysisData.exceedsFreeBudget ? 'text-red-600' : 'text-green-600'}`}>
                           {userAnalysisData.exceedsFreeBudget ? 'Yes' : 'No'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Expected Cost (No Limit)</div>
+                        <div className={`text-lg font-bold ${userAnalysisData.expectedCostWithoutLimit > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          ${userAnalysisData.expectedCostWithoutLimit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     </div>
@@ -1972,7 +1978,7 @@ function App() {
             </div>
             
             {/* Bar Chart - Requests per Model per Day (Top 5 Models) */}
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center mb-2 mt-8">
               <h2 className="text-2xl font-semibold">
                 Requests per Model per Day (Top 5 Models)
                 {selectedSearchUser && (

@@ -200,8 +200,6 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
       const multiplier = getModelMultiplier(item.model);
       const displayName = isDefaultModel(item.model) ? 'Default' : item.model;
 
-      console.log(`Processing model: ${item.model}; Multiplier: ${multiplier}; Display Name: ${displayName}`);
-      
       summary[item.model] = {
         model: item.model,
         displayName,
@@ -942,6 +940,7 @@ export interface UserAnalysisData {
   compliantRequests: number;
   exceedingRequests: number;
   exceedsFreeBudget: boolean;
+  expectedCostWithoutLimit: number;
   uniqueModels: string[];
   weeklyBreakdown: UserWeeklyData[];
   dailyAverage: number;
@@ -1147,6 +1146,7 @@ export function getUserAnalysisData(data: CopilotUsageData[], username: string):
     .filter(item => item.exceedsQuota)
     .reduce((sum, item) => sum + item.requestsUsed, 0);
   const exceedsFreeBudget = exceedingRequests > 0;
+  const expectedCostWithoutLimit = getExpectedExcessCost(userData);
   const uniqueModels = Array.from(new Set(userData.map(item => item.model)));
   
   // Calculate date range
@@ -1215,6 +1215,7 @@ export function getUserAnalysisData(data: CopilotUsageData[], username: string):
     compliantRequests,
     exceedingRequests,
     exceedsFreeBudget,
+    expectedCostWithoutLimit,
     uniqueModels,
     weeklyBreakdown,
     dailyAverage,
