@@ -116,7 +116,7 @@ type WeeklyTopModelsChartProps = {
 };
 
 // Isolated the graph due to latency issues.
-// Was updating selected week on clicked buttons, causing all graphs to re-render.
+// Updates selected week on clicked buttons, causing all graphs to re-render.
 const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
   dailyModelData,
   top5Models,
@@ -343,6 +343,133 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
           ))}
         </BarChart>
       </ChartContainer>
+    </div>
+  );
+});
+
+type BehaviorScatterChartProps = {
+  behaviorData: BehaviorScatterPoint[];
+};
+
+const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
+  behaviorData,
+}: BehaviorScatterChartProps) {
+  const [hiddenBehaviorSegments, setHiddenBehaviorSegments] = useState<Set<string>>(new Set());
+
+  const behaviorSegmentCounts = useMemo(() => {
+    return behaviorData.reduce((acc, userPoint) => {
+      acc[userPoint.behaviorSegment] = (acc[userPoint.behaviorSegment] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [behaviorData]);
+
+  const dataBySegment = useMemo(() => {
+    const result: Record<string, BehaviorScatterPoint[]> = {};
+    for (const point of behaviorData) {
+      if (!result[point.behaviorSegment]) result[point.behaviorSegment] = [];
+      result[point.behaviorSegment].push(point);
+    }
+    return result;
+  }, [behaviorData]);
+
+  const yAxisMax = useMemo(() => {
+    if (!behaviorData.length) return 100;
+    return getNiceAxisCeiling(Math.max(...behaviorData.map(p => p.scatterY)));
+  }, [behaviorData]);
+
+  const toggleBehaviorSegment = useCallback((segment: string) => {
+    setHiddenBehaviorSegments(prev => {
+      const next = new Set(prev);
+      if (next.has(segment)) {
+        next.delete(segment);
+      } else {
+        next.add(segment);
+      }
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className="bg-card p-4 rounded-lg border mb-8">
+      <div className="flex flex-wrap gap-2 mb-4">
+        {Object.entries(behaviorSegmentCounts).map(([segment, count]) => {
+          const isHidden = hiddenBehaviorSegments.has(segment);
+          return (
+            <button
+              key={segment}
+              onClick={() => toggleBehaviorSegment(segment)}
+              className={`text-xs px-2.5 py-1 rounded-full border flex items-center gap-1.5 cursor-pointer transition-opacity select-none ${
+                isHidden ? 'opacity-40' : 'opacity-100'
+              }`}
+              title={isHidden ? `Show ${segment}` : `Hide ${segment}`}
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: isHidden ? '#94A3B8' : (BEHAVIOR_COLORS[segment] || '#7C3AED') }}
+              />
+              <span className={`font-medium ${isHidden ? 'line-through' : ''}`}>{segment}:</span>
+              <span>{count.toLocaleString()}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="h-[460px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis
+              type="number"
+              dataKey="scatterX"
+              name="Active Days %"
+              tick={{ fill: 'var(--foreground)' }}
+              tickLine={{ stroke: 'var(--border)' }}
+              domain={[0, 100]}
+            />
+            <YAxis
+              type="number"
+              dataKey="scatterY"
+              name="Utilization %"
+              tick={{ fill: 'var(--foreground)' }}
+              tickLine={{ stroke: 'var(--border)' }}
+              domain={[0, yAxisMax]}
+            />
+            <ZAxis type="number" dataKey="modelDiversity" range={[80, 420]} />
+            <Tooltip
+              cursor={{ strokeDasharray: '3 3' }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const point = payload[0].payload as BehaviorScatterPoint;
+                  return (
+                    <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                      <div className="font-medium mb-2">{point.user}</div>
+                      <div className="space-y-1">
+                        <div>Segment: <span className="font-medium">{point.behaviorSegment}</span></div>
+                        <div>Utilization: <span className="font-medium">{point.utilizationPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                        <div>Active Days: <span className="font-medium">{point.activeDaysPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                        <div>Models Used: <span className="font-medium">{point.modelDiversity.toLocaleString()}</span></div>
+                        <div>Top Model Share: <span className="font-medium">{point.topModelSharePct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                        <div>First Week Usage: <span className="font-medium">{(point.frontloadIndex * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
+                        <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span></div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            {Object.entries(dataBySegment).map(([segment, points]) => (
+              <Scatter
+                key={segment}
+                name={segment}
+                data={hiddenBehaviorSegments.has(segment) ? [] : points}
+                fill={BEHAVIOR_COLORS[segment] || '#7C3AED'}
+                isAnimationActive={false}
+              />
+            ))}
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 });
@@ -750,13 +877,6 @@ function App() {
       };
     });
   }, [displayData, selectedPlan]);
-
-  const behaviorSegmentCounts = useMemo(() => {
-    return behaviorData.reduce((acc, userPoint) => {
-      acc[userPoint.behaviorSegment] = (acc[userPoint.behaviorSegment] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-  }, [behaviorData]);
 
   // Get all unique models from the data (not just top 5), sorted by total requests (descending)
   const getAllUniqueModels = useCallback(() => {
@@ -1944,76 +2064,7 @@ function App() {
               </div>
             </div>
             <Separator className="mb-6" />
-            <div className="bg-card p-4 rounded-lg border mb-8">
-              <div className="flex flex-wrap gap-2 mb-4">
-                {Object.entries(behaviorSegmentCounts).map(([segment, count]) => (
-                  <div key={segment} className="text-xs px-2.5 py-1 rounded-full border flex items-center gap-1.5">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: BEHAVIOR_COLORS[segment] || '#7C3AED' }}
-                    />
-                    <span className="font-medium">{segment}:</span>
-                    <span>{count.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="h-[460px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis
-                      type="number"
-                      dataKey="scatterX"
-                      name="Active Days %"
-                      tick={{ fill: 'var(--foreground)' }}
-                      tickLine={{ stroke: 'var(--border)' }}
-                      domain={[0, 100]}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="scatterY"
-                      name="Utilization %"
-                      tick={{ fill: 'var(--foreground)' }}
-                      tickLine={{ stroke: 'var(--border)' }}
-                      domain={[0, 'auto']}
-                    />
-                    <ZAxis type="number" dataKey="modelDiversity" range={[80, 420]} />
-                    <Tooltip
-                      cursor={{ strokeDasharray: '3 3' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const point = payload[0].payload as BehaviorScatterPoint;
-                          return (
-                            <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
-                              <div className="font-medium mb-2">{point.user}</div>
-                              <div className="space-y-1">
-                                <div>Segment: <span className="font-medium">{point.behaviorSegment}</span></div>
-                                <div>Utilization: <span className="font-medium">{point.utilizationPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                                <div>Active Days: <span className="font-medium">{point.activeDaysPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                                <div>Models Used: <span className="font-medium">{point.modelDiversity.toLocaleString()}</span></div>
-                                <div>Top Model Share: <span className="font-medium">{point.topModelSharePct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                                <div>First Week Usage: <span className="font-medium">{(point.frontloadIndex * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                                <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span></div>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter name="Users" data={behaviorData}>
-                      {behaviorData.map((point) => (
-                        <Cell
-                          key={point.user}
-                          fill={BEHAVIOR_COLORS[point.behaviorSegment] || '#7C3AED'}
-                        />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <BehaviorScatterChart behaviorData={behaviorData} />
           </div>
         </div>
       )}
