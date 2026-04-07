@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { defaultServerMainFields } from "vite";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -196,9 +197,9 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
   
   data.forEach(item => {
     if (!summary[item.model]) {
-      const multiplier = MODEL_MULTIPLIERS[item.model] || 1;
-      const displayName = DEFAULT_MODELS.includes(item.model) ? 'Default' : item.model;
-      
+      const multiplier = getModelMultiplier(item.model);
+      const displayName = isDefaultModel(item.model) ? 'Default' : item.model;
+
       summary[item.model] = {
         model: item.model,
         displayName,
@@ -333,26 +334,58 @@ export const PLAN_MONTHLY_LIMITS = {
 } as const;
 
 // Model multipliers based on GitHub documentation (for paid plans)
+// Uses display names as they appear in GitHub Copilot exports.
 export const MODEL_MULTIPLIERS: Record<string, number> = {
-  // Default models (0x multiplier for paid plans)
+  // Current default models (0x multiplier for paid plans)
+  'GPT-4.1': 0,
+  'GPT-4o': 0,
+  'GPT-5 mini': 0,
+  'Raptor mini': 0,
+
+  // OpenAI models
+  'GPT-5.1': 1,
+  'GPT-5.1-Codex': 1,
+  'GPT-5.1-Codex-Mini': 0.33,
+  'GPT-5.1-Codex-Max': 1,
+  'GPT-5.2': 1,
+  'GPT-5.2-Codex': 1,
+  'GPT-5.3-Codex': 1,
+  'GPT-5.4': 1,
+  'GPT-5.4 mini': 0.33,
+
+  // Anthropic models
+  'Claude Haiku 4.5': 0.33,
+  'Claude Sonnet 4': 1,
+  'Claude Sonnet 4.5': 1,
+  'Claude Sonnet 4.6': 1,
+  'Claude Opus 4.5': 3,
+  'Claude Opus 4.6': 3,
+  'Claude Opus 4.6 (fast mode) (preview)': 30,
+
+  // Google models
+  'Gemini 2.5 Pro': 1,
+  'Gemini 3 Flash': 0.33,
+  'Gemini 3 Pro': 1,
+  'Gemini 3.1 Pro': 1,
+
+  // xAI and other models
+  'Grok Code Fast 1': 0.25,
+  'Goldeneye': 1,
+
+  // Backward compatibility for older exports
   'gpt-4o-2024-11-20': 0,
   'gpt-4.1-2025-04-14': 0,
   'gpt-4o': 0,
   'gpt-4.1': 0,
-  // GPT-4.5 models
   'gpt-4.5': 50,
-  // Vision models
   'gpt-4.1-vision': 0,
-  // Claude models
   'claude-sonnet-3.5': 1,
   'claude-sonnet-3.7': 1,
   'claude-sonnet-3.7-thinking': 1.25,
   'claude-sonnet-4': 1,
   'claude-opus-4': 10,
-  // Gemini models
   'gemini-2.0-flash': 0.25,
   'gemini-2.5-pro': 1,
-  // O-series models
   'o1': 10,
   'o3': 1,
   'o3-mini': 0.33,
@@ -363,7 +396,19 @@ export const MODEL_MULTIPLIERS: Record<string, number> = {
 };
 
 // Default models that should be grouped
-export const DEFAULT_MODELS = ['gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+
+function normalizeModelName(model: string): string {
+  return model.replace(/^Auto:\s*/, '').trim();
+}
+
+function getModelMultiplier(model: string): number {
+  return MODEL_MULTIPLIERS[normalizeModelName(model)] ?? 1;
+}
+
+function isDefaultModel(model: string): boolean {
+  return DEFAULT_MODELS.includes(normalizeModelName(model));
+}
 
 // Cost per excess request (in USD) for premium requests
 export const EXCESS_REQUEST_COST = 0.04; // $0.04 per excess request
@@ -788,6 +833,91 @@ export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[],
   return projectedUsers.sort((a, b) => b.projectedMonthlyTotal - a.projectedMonthlyTotal);
 }
 
+/**
+ * Calculate the total expected excess cost if there were no monthly quota limit.
+ * For each user who has reached the plan limit:
+ * 1. Find the day their cumulative requests hit the limit (budget exhaustion day).
+ * 2. Compute daily average requests per model, excluding the last usage day (to avoid partial-day skew).
+ * 3. Project those requests over the remaining days after the exhaustion day.
+ * 4. Apply each model's cost multiplier and sum the cost at $0.04/PRU.
+ */
+export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = COPILOT_PLANS.BUSINESS): number {
+  if (!data.length) return 0;
+
+  const planLimit = (PLAN_MONTHLY_LIMITS as Record<string, number>)[plan] ?? PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+
+  const lastDate = getLastDateFromData(data);
+  if (!lastDate) return 0;
+
+  const lastDateObj = new Date(lastDate);
+  const totalDaysInMonth = new Date(lastDateObj.getFullYear(), lastDateObj.getMonth() + 1, 0).getDate();
+
+  // Group all items by user
+  const userDataMap: Record<string, CopilotUsageData[]> = {};
+  data.forEach(item => {
+    if (!userDataMap[item.user]) userDataMap[item.user] = [];
+    userDataMap[item.user].push(item);
+  });
+
+  let totalExpectedCost = 0;
+
+  Object.values(userDataMap).forEach(userItems => {
+    // Only process users who have reached the plan limit
+    const totalRequests = userItems.reduce((sum, item) => sum + item.requestsUsed, 0);
+    if (totalRequests < planLimit) return;
+
+    // Group by date (YYYY-MM-DD), sorted ascending
+    const byDate: Record<string, CopilotUsageData[]> = {};
+    userItems.forEach(item => {
+      const date = item.timestamp.toISOString().split('T')[0];
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(item);
+    });
+    const sortedDates = Object.keys(byDate).sort();
+
+    // Find the day cumulative requests first reach the plan limit
+    let cumulative = 0;
+    let budgetExhaustionDayOfMonth: number | null = null;
+    for (const date of sortedDates) {
+      const dayTotal = byDate[date].reduce((sum, item) => sum + item.requestsUsed, 0);
+      cumulative += dayTotal;
+      if (cumulative >= planLimit) {
+        budgetExhaustionDayOfMonth = new Date(date).getDate();
+        break;
+      }
+    }
+    if (budgetExhaustionDayOfMonth === null) return;
+
+    const remainingDays = totalDaysInMonth - budgetExhaustionDayOfMonth;
+    if (remainingDays <= 0) return;
+
+    // Compute daily average per model, excluding the last usage day (which may be partial)
+    const lastUsageDate = sortedDates[sortedDates.length - 1];
+    const datesForAverage = sortedDates.filter(d => d !== lastUsageDate);
+    if (datesForAverage.length === 0) return;
+
+    const modelTotals: Record<string, number> = {};
+    datesForAverage.forEach(date => {
+      byDate[date].forEach(item => {
+        modelTotals[item.model] = (modelTotals[item.model] || 0) + item.requestsUsed;
+      });
+    });
+
+    const numDays = datesForAverage.length;
+
+    // Project extra requests per model over remaining days and apply cost multiplier
+    Object.entries(modelTotals).forEach(([model, total]) => {
+      const multiplier = getModelMultiplier(model);
+      if (multiplier === 0) return; // Free models have no cost
+      const dailyAvg = total / numDays;
+      const projectedExtra = dailyAvg * remainingDays;
+      totalExpectedCost += projectedExtra * multiplier * EXCESS_REQUEST_COST;
+    });
+  });
+
+  return totalExpectedCost;
+}
+
 // Re-export month utilities for backward compatibility
 export { getAvailableMonths, filterDataByMonth, getMonthCoverage } from './month-utils';
 export type { MonthOption } from '../types/month';
@@ -810,11 +940,161 @@ export interface UserAnalysisData {
   compliantRequests: number;
   exceedingRequests: number;
   exceedsFreeBudget: boolean;
+  expectedCostWithoutLimit: number;
   uniqueModels: string[];
   weeklyBreakdown: UserWeeklyData[];
   dailyAverage: number;
   firstActivityDate: string;
   lastActivityDate: string;
+}
+
+export type BehaviorSegment =
+  | 'Steady Users'
+  | 'Low Engagement Users'
+  | 'Burst Users'
+  | 'Model Explorers'
+  | 'Model Loyalists'
+  | 'Mixed Behavior';
+
+export interface UserBehaviorDataPoint {
+  user: string;
+  behaviorSegment: BehaviorSegment;
+  utilizationPct: number;
+  activeDaysPct: number;
+  modelDiversity: number;
+  topModelSharePct: number;
+  frontloadIndex: number;
+  totalRequests: number;
+}
+
+function getStandardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Build behavior segmentation points for each user in a month.
+ * The output is optimized for scatter charts (engagement vs utilization).
+ */
+export function getUserBehaviorData(
+  data: CopilotUsageData[],
+  plan: string = COPILOT_PLANS.BUSINESS
+): UserBehaviorDataPoint[] {
+  if (!data.length) return [];
+
+  const planLimit = PLAN_MONTHLY_LIMITS[plan] || PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS];
+  const lastTimestamp = Math.max(...data.map(item => item.timestamp.getTime()));
+  const referenceDate = new Date(lastTimestamp);
+  const totalDaysInMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    0
+  ).getDate();
+
+  const users = new Map<string, {
+    totalRequests: number;
+    dailyTotals: Map<string, number>;
+    modelTotals: Map<string, number>;
+    firstWeekRequests: number;
+  }>();
+
+  data.forEach(item => {
+    const date = item.timestamp.toISOString().split('T')[0];
+    const dayOfMonth = item.timestamp.getDate();
+
+    if (!users.has(item.user)) {
+      users.set(item.user, {
+        totalRequests: 0,
+        dailyTotals: new Map<string, number>(),
+        modelTotals: new Map<string, number>(),
+        firstWeekRequests: 0,
+      });
+    }
+
+    const userData = users.get(item.user)!;
+    userData.totalRequests += item.requestsUsed;
+    userData.dailyTotals.set(date, (userData.dailyTotals.get(date) || 0) + item.requestsUsed);
+    userData.modelTotals.set(item.model, (userData.modelTotals.get(item.model) || 0) + item.requestsUsed);
+
+    if (dayOfMonth <= 7) {
+      userData.firstWeekRequests += item.requestsUsed;
+    }
+  });
+
+  const classifyBehavior = (
+    utilizationPct: number,
+    activeDaysPct: number,
+    frontloadIndex: number,
+    dailyVariability: number,
+    modelDiversity: number,
+    topModelSharePct: number
+  ): BehaviorSegment => {
+    if (utilizationPct < 15 && activeDaysPct < 20) return 'Low Engagement Users';
+
+    if (
+      utilizationPct >= 70 &&
+      activeDaysPct >= 45 &&
+      frontloadIndex <= 0.45 &&
+      dailyVariability <= 1.35
+    ) {
+      return 'Steady Users';
+    }
+
+    if (utilizationPct >= 70 && frontloadIndex >= 0.55) {
+      return 'Burst Users';
+    }
+
+    if (modelDiversity >= 4 && topModelSharePct <= 60) {
+      return 'Model Explorers';
+    }
+
+    if (modelDiversity <= 2 && topModelSharePct >= 75) {
+      return 'Model Loyalists';
+    }
+
+    return 'Mixed Behavior';
+  };
+
+  return Array.from(users.entries())
+    .map(([user, userData]) => {
+      const activeDays = userData.dailyTotals.size;
+      const utilizationPct = (userData.totalRequests / planLimit) * 100;
+      const activeDaysPct = (activeDays / totalDaysInMonth) * 100;
+      const frontloadIndex = userData.totalRequests > 0 ? userData.firstWeekRequests / userData.totalRequests : 0;
+
+      const dailySeries = Array.from(userData.dailyTotals.values());
+      const dailyAverage = dailySeries.length
+        ? dailySeries.reduce((sum, value) => sum + value, 0) / dailySeries.length
+        : 0;
+      const dailyVariability = dailyAverage > 0 ? getStandardDeviation(dailySeries) / dailyAverage : 0;
+
+      const modelTotals = Array.from(userData.modelTotals.values());
+      const topModelSharePct = modelTotals.length
+        ? (Math.max(...modelTotals) / userData.totalRequests) * 100
+        : 0;
+      const modelDiversity = userData.modelTotals.size;
+
+      return {
+        user,
+        behaviorSegment: classifyBehavior(
+          utilizationPct,
+          activeDaysPct,
+          frontloadIndex,
+          dailyVariability,
+          modelDiversity,
+          topModelSharePct
+        ),
+        utilizationPct,
+        activeDaysPct,
+        modelDiversity,
+        topModelSharePct,
+        frontloadIndex,
+        totalRequests: userData.totalRequests,
+      };
+    })
+    .sort((a, b) => b.totalRequests - a.totalRequests);
 }
 
 /**
@@ -866,6 +1146,7 @@ export function getUserAnalysisData(data: CopilotUsageData[], username: string):
     .filter(item => item.exceedsQuota)
     .reduce((sum, item) => sum + item.requestsUsed, 0);
   const exceedsFreeBudget = exceedingRequests > 0;
+  const expectedCostWithoutLimit = getExpectedExcessCost(userData);
   const uniqueModels = Array.from(new Set(userData.map(item => item.model)));
   
   // Calculate date range
@@ -934,6 +1215,7 @@ export function getUserAnalysisData(data: CopilotUsageData[], username: string):
     compliantRequests,
     exceedingRequests,
     exceedsFreeBudget,
+    expectedCostWithoutLimit,
     uniqueModels,
     weeklyBreakdown,
     dailyAverage,
