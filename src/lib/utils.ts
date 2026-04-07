@@ -671,6 +671,53 @@ export function getUserExceededRequestSummary(data: CopilotUsageData[], userName
   };
 }
 
+export interface ExceededUserSummary {
+  user: string;
+  daysExceeded: number;
+  totalExceededRequests: number;
+  totalRequestsOnExceededDays: number;
+  compliantRequestsOnExceededDays: number;
+  worstDay: { date: string; exceededRequests: number; totalRequests: number };
+}
+
+/**
+ * Get a per-user overview of all users who have exceeded their quota at least once.
+ * Sorted by total exceeded requests descending.
+ */
+export function getExceededUsersOverview(data: CopilotUsageData[]): ExceededUserSummary[] {
+  const allDetails = getExceededRequestDetails(data);
+  if (allDetails.length === 0) return [];
+
+  const byUser: Record<string, ExceededUserSummary> = {};
+
+  allDetails.forEach(detail => {
+    if (!byUser[detail.user]) {
+      byUser[detail.user] = {
+        user: detail.user,
+        daysExceeded: 0,
+        totalExceededRequests: 0,
+        totalRequestsOnExceededDays: 0,
+        compliantRequestsOnExceededDays: 0,
+        worstDay: { date: detail.date, exceededRequests: 0, totalRequests: 0 },
+      };
+    }
+    const summary = byUser[detail.user];
+    summary.daysExceeded += 1;
+    summary.totalExceededRequests += detail.exceededRequests;
+    summary.totalRequestsOnExceededDays += detail.totalRequestsOnDay;
+    summary.compliantRequestsOnExceededDays += detail.compliantRequestsOnDay;
+    if (detail.exceededRequests > summary.worstDay.exceededRequests) {
+      summary.worstDay = {
+        date: detail.date,
+        exceededRequests: detail.exceededRequests,
+        totalRequests: detail.totalRequestsOnDay,
+      };
+    }
+  });
+
+  return Object.values(byUser).sort((a, b) => b.totalExceededRequests - a.totalExceededRequests);
+}
+
 /**
  * Get the count of unique users who have exceeded their quota limits
  * @param data - Array of Copilot usage data
