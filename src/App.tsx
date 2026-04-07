@@ -83,6 +83,270 @@ function getUserJitter(user: string): number {
   return ((hash % 701) - 350) / 1000;
 }
 
+function getNiceAxisCeiling(value: number): number {
+  if (value <= 0) return 1;
+
+  const targetIntervals = 6;
+  const roughStep = value / targetIntervals;
+  const exponent = Math.floor(Math.log10(roughStep));
+  const magnitude = Math.pow(10, exponent);
+  const normalized = roughStep / magnitude;
+
+  let niceNormalizedStep: number;
+  if (normalized <= 1) {
+    niceNormalizedStep = 1;
+  } else if (normalized <= 2) {
+    niceNormalizedStep = 2;
+  } else if (normalized <= 2.5) {
+    niceNormalizedStep = 2.5;
+  } else if (normalized <= 5) {
+    niceNormalizedStep = 5;
+  } else {
+    niceNormalizedStep = 10;
+  }
+
+  return niceNormalizedStep * magnitude * targetIntervals;
+}
+
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+type WeeklyTopModelsChartProps = {
+  dailyModelData: DailyModelData[];
+  top5Models: string[];
+};
+
+// Isolated the graph due to latency issues.
+// Was updating selected week on clicked buttons, causing all graphs to re-render.
+const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
+  dailyModelData,
+  top5Models,
+}: WeeklyTopModelsChartProps) {
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
+
+  const dailyRequestsByDate = useMemo(() => {
+    const groupedByDate: Record<string, Record<string, number>> = {};
+
+    dailyModelData.forEach((item) => {
+      if (!groupedByDate[item.date]) {
+        groupedByDate[item.date] = {};
+      }
+
+      groupedByDate[item.date][item.model] = (groupedByDate[item.date][item.model] || 0) + item.requests;
+    });
+
+    return groupedByDate;
+  }, [dailyModelData]);
+
+  const weeklyOtherLabel = useMemo(() => {
+    const uniqueModelCount = new Set(dailyModelData.map((item) => item.model)).size;
+    const otherCount = Math.max(0, uniqueModelCount - top5Models.length);
+    return otherCount > 0 ? `Other (${otherCount})` : 'Other';
+  }, [dailyModelData, top5Models]);
+
+  const weeklyChartSeries = useMemo(() => {
+    return [...top5Models, weeklyOtherLabel];
+  }, [top5Models, weeklyOtherLabel]);
+
+  const weeklyModelColors = useMemo(() => {
+    const result: Record<string, string> = {};
+    top5Models.forEach((model, index) => {
+      result[model] = MODEL_COLORS[index % MODEL_COLORS.length];
+    });
+    result[weeklyOtherLabel] = OTHER_COLOR;
+    return result;
+  }, [top5Models, weeklyOtherLabel]);
+
+  const weeklyChartConfig = useMemo(() => {
+    return Object.entries(weeklyModelColors).reduce((acc, [model, color]) => {
+      acc[model] = { color };
+      return acc;
+    }, {} as Record<string, { color: string }>);
+  }, [weeklyModelColors]);
+
+  const availableWeeks = useMemo(() => {
+    if (!dailyModelData.length) return [];
+
+    const weekStartSet = new Set<string>();
+    dailyModelData.forEach((item) => {
+      const d = new Date(item.date + 'T00:00:00Z');
+      const day = d.getUTCDay();
+      const diffToMon = day === 0 ? -6 : 1 - day;
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() + diffToMon);
+      weekStartSet.add(mon.toISOString().split('T')[0]);
+    });
+
+    return [...weekStartSet].sort();
+  }, [dailyModelData]);
+
+  useEffect(() => {
+    if (availableWeeks.length > 0) {
+      setSelectedWeekIndex(availableWeeks.length - 1);
+    }
+  }, [availableWeeks]);
+
+  const selectedWeekDates = useMemo(() => {
+    if (!availableWeeks.length) return [];
+
+    const weekStart = availableWeeks[selectedWeekIndex];
+    if (!weekStart) return [];
+
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + i);
+      weekDates.push(d.toISOString().split('T')[0]);
+    }
+
+    return weekDates;
+  }, [availableWeeks, selectedWeekIndex]);
+
+  const selectedWeekDailyData = useMemo(() => {
+    if (!selectedWeekDates.length) return [];
+
+    return selectedWeekDates.map((date) => {
+      const dayValues = dailyRequestsByDate[date] || {};
+      const d = new Date(date + 'T00:00:00Z');
+      const dayLabel = `${WEEKDAY_NAMES[d.getUTCDay()]} ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
+      const entry: Record<string, string | number> = { dayLabel };
+
+      top5Models.forEach((model) => {
+        entry[model] = dayValues[model] || 0;
+      });
+
+      let other = 0;
+      Object.entries(dayValues).forEach(([model, requests]) => {
+        if (!top5Models.includes(model)) {
+          other += requests;
+        }
+      });
+
+      entry[weeklyOtherLabel] = other;
+      return entry;
+    });
+  }, [selectedWeekDates, dailyRequestsByDate, top5Models, weeklyOtherLabel]);
+
+  const selectedWeekYAxisMax = useMemo(() => {
+    let maxValue = 0;
+
+    Object.values(dailyRequestsByDate).forEach((dayValues) => {
+      weeklyChartSeries.forEach((seriesKey) => {
+        if (seriesKey === weeklyOtherLabel) {
+          let other = 0;
+          Object.entries(dayValues).forEach(([model, requests]) => {
+            if (!top5Models.includes(model)) {
+              other += requests;
+            }
+          });
+          maxValue = Math.max(maxValue, other);
+          return;
+        }
+
+        maxValue = Math.max(maxValue, dayValues[seriesKey] || 0);
+      });
+    });
+
+    return getNiceAxisCeiling(maxValue);
+  }, [dailyRequestsByDate, top5Models, weeklyOtherLabel, weeklyChartSeries]);
+
+  const selectedWeekLabel = useMemo(() => {
+    if (!selectedWeekDates.length) return '';
+
+    const fmt = (dateStr: string) => {
+      const dt = new Date(dateStr + 'T00:00:00Z');
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    };
+
+    return `${fmt(selectedWeekDates[0])} – ${fmt(selectedWeekDates[selectedWeekDates.length - 1])}`;
+  }, [selectedWeekDates]);
+
+  return (
+    <div className="bg-card p-4 rounded-lg border">
+      <div className="flex items-center justify-center gap-4 mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedWeekIndex((index) => Math.max(0, index - 1))}
+          disabled={selectedWeekIndex === 0}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-medium min-w-[160px] text-center">{selectedWeekLabel}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedWeekIndex((index) => Math.min(availableWeeks.length - 1, index + 1))}
+          disabled={selectedWeekIndex === availableWeeks.length - 1}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <ChartContainer
+        config={weeklyChartConfig}
+        className="h-[400px] w-full"
+      >
+        <BarChart data={selectedWeekDailyData}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis
+            dataKey="dayLabel"
+            tick={{ fill: 'var(--foreground)', fontSize: 12 }}
+            tickLine={{ stroke: 'var(--border)' }}
+            interval={0}
+          />
+          <YAxis
+            tick={{ fill: 'var(--foreground)' }}
+            tickLine={{ stroke: 'var(--border)' }}
+            domain={[0, selectedWeekYAxisMax]}
+          />
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (active && payload && payload.length) {
+                const filtered = payload.filter((entry) => Number(entry.value) > 0);
+                const total = filtered.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
+                return (
+                  <div className="border rounded-lg bg-background shadow-lg p-3">
+                    <div className="font-medium mb-2">{label}</div>
+                    <div className="space-y-1.5">
+                      {filtered.map((entry, index) => (
+                        <div key={`item-${index}`} className="flex justify-between items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: entry.color as string }}
+                            />
+                            <span>{entry.name}:</span>
+                          </div>
+                          <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</div>
+                        </div>
+                      ))}
+                      {filtered.length > 1 && (
+                        <div className="border-t pt-1 mt-1 flex justify-between font-semibold">
+                          <span>Total:</span>
+                          <span>{total.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            }}
+          />
+          <Legend />
+          {weeklyChartSeries.map((model) => (
+            <Bar
+              key={model}
+              dataKey={model}
+              name={model}
+              fill={weeklyModelColors[model]}
+            />
+          ))}
+        </BarChart>
+      </ChartContainer>
+    </div>
+  );
+});
+
 function App() {
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
   const [data, setData] = useState<CopilotUsageData[] | null>(null);
@@ -111,7 +375,6 @@ function App() {
   const [projectedUsersData, setProjectedUsersData] = useState<ProjectedUserData[]>([]);
   const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
   const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Recalculate users exceeding quota when plan selection changes
@@ -593,88 +856,6 @@ function App() {
       a.date.localeCompare(b.date)
     );
   }, [dailyModelData, getAllUniqueModels]);
-
-  // Compute sorted list of week start dates (ISO string for Monday) present in the data
-  const availableWeeks = useMemo(() => {
-    if (!dailyModelData.length) return [];
-    const weekStartSet = new Set<string>();
-    dailyModelData.forEach(item => {
-      const d = new Date(item.date + 'T00:00:00Z');
-      const day = d.getUTCDay();
-      const diffToMon = day === 0 ? -6 : 1 - day;
-      const mon = new Date(d);
-      mon.setUTCDate(d.getUTCDate() + diffToMon);
-      weekStartSet.add(mon.toISOString().split('T')[0]);
-    });
-    return [...weekStartSet].sort();
-  }, [dailyModelData]);
-
-  // Reset to last (most recent) week when data changes
-  useEffect(() => {
-    if (availableWeeks.length > 0) {
-      setSelectedWeekIndex(availableWeeks.length - 1);
-    }
-  }, [availableWeeks]);
-
-  const selectedWeekDates = useMemo(() => {
-    if (!availableWeeks.length) return [];
-    const weekStart = availableWeeks[selectedWeekIndex];
-    if (!weekStart) return [];
-
-    const weekDates: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart + 'T00:00:00Z');
-      d.setUTCDate(d.getUTCDate() + i);
-      weekDates.push(d.toISOString().split('T')[0]);
-    }
-
-    return weekDates;
-  }, [availableWeeks, selectedWeekIndex]);
-
-  // Per-day data for the selected week (Mon–Sun), top 5 models + Other, non-stacked
-  const selectedWeekDailyData = useMemo(() => {
-    if (!selectedWeekDates.length || !dailyModelData.length) return [];
-
-    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    // Aggregate requests per day per model
-    const grouped: Record<string, Record<string, number>> = {};
-    selectedWeekDates.forEach(date => { grouped[date] = {}; });
-    dailyModelData.forEach(item => {
-      if (!grouped[item.date]) return;
-      grouped[item.date][item.model] = (grouped[item.date][item.model] || 0) + item.requests;
-    });
-
-    return selectedWeekDates.map((date) => {
-      const d = new Date(date + 'T00:00:00Z');
-      const dayLabel = `${DAY_NAMES[d.getUTCDay()]} ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
-      const entry: Record<string, any> = { dayLabel };
-      top5Models.forEach(model => {
-        entry[model] = grouped[date][model] || 0;
-      });
-      let other = 0;
-      Object.entries(grouped[date]).forEach(([model, requests]) => {
-        if (!top5Models.includes(model)) other += requests;
-      });
-      entry['Other'] = other;
-      return entry;
-    });
-  }, [selectedWeekDates, dailyModelData, top5Models]);
-
-  // Week label for the selected week
-  const selectedWeekLabel = useMemo(() => {
-    if (!selectedWeekDates.length) return '';
-
-    const startDate = selectedWeekDates[0];
-    const endDate = selectedWeekDates[selectedWeekDates.length - 1];
-
-    const fmt = (dateStr: string) => {
-      const dt = new Date(dateStr + 'T00:00:00Z');
-      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    };
-
-    return `${fmt(startDate)} – ${fmt(endDate)}`;
-  }, [selectedWeekDates]);
 
   // Helper function to get plan limit based on selected plan
   const getPlanLimit = useCallback((item: ModelUsageSummary) => {
@@ -1741,92 +1922,10 @@ function App() {
               </h2>
             </div>
             <Separator className="mb-6" />
-            <div className="bg-card p-4 rounded-lg border">
-              {/* Week navigation */}
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedWeekIndex(i => Math.max(0, i - 1))}
-                  disabled={selectedWeekIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium min-w-[160px] text-center">{selectedWeekLabel}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedWeekIndex(i => Math.min(availableWeeks.length - 1, i + 1))}
-                  disabled={selectedWeekIndex === availableWeeks.length - 1}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              <ChartContainer
-                config={Object.entries(getModelColors()).reduce((acc, [model, color]) => {
-                  acc[model] = { color };
-                  return acc;
-                }, {} as Record<string, { color: string }>)}
-                className="h-[400px] w-full"
-              >
-                <BarChart data={selectedWeekDailyData}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis
-                    dataKey="dayLabel"
-                    tick={{ fill: 'var(--foreground)', fontSize: 12 }}
-                    tickLine={{ stroke: 'var(--border)' }}
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fill: 'var(--foreground)' }}
-                    tickLine={{ stroke: 'var(--border)' }}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const filtered = payload.filter(e => Number(e.value) > 0);
-                        const total = filtered.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
-                        return (
-                          <div className="border rounded-lg bg-background shadow-lg p-3">
-                            <div className="font-medium mb-2">{label}</div>
-                            <div className="space-y-1.5">
-                              {filtered.map((entry, index) => (
-                                <div key={`item-${index}`} className="flex justify-between items-center gap-4">
-                                  <div className="flex items-center gap-1.5">
-                                    <div
-                                      className="w-2 h-2 rounded-full"
-                                      style={{ backgroundColor: entry.color as string }}
-                                    />
-                                    <span>{entry.name}:</span>
-                                  </div>
-                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</div>
-                                </div>
-                              ))}
-                              {filtered.length > 1 && (
-                                <div className="border-t pt-1 mt-1 flex justify-between font-semibold">
-                                  <span>Total:</span>
-                                  <span>{total.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend />
-                  {[...top5Models, getOtherModelCount() > 0 ? `Other (${getOtherModelCount()})` : 'Other'].map((model) => (
-                    <Bar
-                      key={model}
-                      dataKey={model}
-                      name={model}
-                      fill={getModelColors()[model]}
-                    />
-                  ))}
-                </BarChart>
-              </ChartContainer>
-            </div>
+            <WeeklyTopModelsChart
+              dailyModelData={dailyModelData}
+              top5Models={top5Models}
+            />
 
             
 
