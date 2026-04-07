@@ -47,7 +47,8 @@ import {
   filterDataByMonth,
   getUserAnalysisData,
   getUserBehaviorData,
-  EXCESS_REQUEST_COST
+  EXCESS_REQUEST_COST,
+  getExpectedExcessCost
 } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
 import { UserSearch } from "@/components/UserSearch";
@@ -351,6 +352,7 @@ type BehaviorScatterChartProps = {
   behaviorData: BehaviorScatterPoint[];
 };
 
+// Isolated the graph due to latency issues. Allows toggling segments without reprocessing data or re-rendering other graphs.
 const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
   behaviorData,
 }: BehaviorScatterChartProps) {
@@ -502,6 +504,7 @@ function App() {
   const [projectedUsersData, setProjectedUsersData] = useState<ProjectedUserData[]>([]);
   const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
   const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
+  const [expectedExcessCost, setExpectedExcessCost] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Recalculate users exceeding quota when plan selection changes
@@ -515,6 +518,9 @@ function App() {
       
       const projectedDetails = getProjectedUsersExceedingQuotaDetails(data, selectedPlan);
       setProjectedUsersData(projectedDetails);
+
+      const expectedCost = getExpectedExcessCost(data, selectedPlan);
+      setExpectedExcessCost(expectedCost);
       
       // Update user analysis data if a user is selected
       if (selectedSearchUser) {
@@ -633,6 +639,10 @@ function App() {
     // Get the last date available in the filtered CSV for the selected month
     const lastDate = getLastDateFromData(filteredData);
     setLastDateAvailable(lastDate);
+
+    // Get expected excess cost for the selected month
+    const expectedCost = getExpectedExcessCost(filteredData, selectedPlan);
+    setExpectedExcessCost(expectedCost);
     
     // Reset selected power user when month changes
     setSelectedPowerUser(null);
@@ -1366,6 +1376,15 @@ function App() {
                         ${(displayData.reduce((sum, item) => sum + item.requestsUsed, 0) * EXCESS_REQUEST_COST).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </span>
                       <ChevronRight className="icon" />
+                    </div>
+                    <div
+                      className="flex items-center gap-2"
+                      title="Projected total cost if the monthly quota limit did not exist, based on each user's usage rate and model cost multipliers"
+                    >
+                      <span className="text-sm text-muted-foreground">Expected Cost (no limit):</span>
+                      <span className="text-lg font-bold text-orange-600">
+                        ${expectedExcessCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      </span>
                     </div>
                     {powerUserSummary && (
                       <Sheet>
