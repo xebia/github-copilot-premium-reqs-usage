@@ -401,7 +401,7 @@ export const MODEL_MULTIPLIERS: Record<string, number> = {
 };
 
 // Default models that should be grouped
-export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'GPT-5 mini', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
 
 function normalizeModelName(model: string): string {
   return model.replace(/^Auto:\s*/, '').trim();
