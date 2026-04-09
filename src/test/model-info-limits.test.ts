@@ -98,14 +98,16 @@ describe('Model Info and Limits Feature', () => {
     expect(defaultGroup).toBeDefined();
     
     if (defaultGroup) {
-      // 50 exceeding requests * 0x multiplier * $0.04 = $0.00
-      expect(defaultGroup.excessCost).toBe(50 * 0 * EXCESS_REQUEST_COST);
+      // 50 exceeding requests * $0.04 = $2.00
+      // Note: CSV requestsUsed already includes the multiplier
+      expect(defaultGroup.excessCost).toBe(50 * EXCESS_REQUEST_COST);
     }
-    
+
     const o3Model = result.find(item => item.model === 'o3-mini-2025-01-31');
     if (o3Model) {
-      // 10 exceeding requests * 0.33x multiplier * $0.04 = $0.132
-      expect(o3Model.excessCost).toBe(10 * 0.33 * EXCESS_REQUEST_COST);
+      // 10 exceeding requests * $0.04 = $0.40
+      // Note: CSV requestsUsed already includes the 0.33x multiplier
+      expect(o3Model.excessCost).toBe(10 * EXCESS_REQUEST_COST);
     }
   });
 
