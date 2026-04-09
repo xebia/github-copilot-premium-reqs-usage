@@ -26,6 +26,9 @@ export default tseslint.config(
       // Make ESLint more lenient for existing codebase
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
+      // New rules in eslint-plugin-react-hooks@7.x - set to warn for gradual adoption
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
     },
   },
 )

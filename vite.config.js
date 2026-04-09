@@ -60,6 +60,11 @@ export default defineConfig({
       ])
     ),
   },
+  css: {
+    lightningcss: {
+      errorRecovery: true,
+    },
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,

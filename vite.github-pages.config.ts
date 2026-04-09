@@ -32,6 +32,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  css: {
+    lightningcss: {
+      errorRecovery: true,
+    },
+  },
   define: {
     // Inject deployment info as constants
     ...Object.fromEntries(
