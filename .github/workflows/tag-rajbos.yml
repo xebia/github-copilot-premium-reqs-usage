@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Tag rajbos on new issue or PR
-        uses: devops-actions/issue-comment-tag@v0.1.8
+        uses: devops-actions/issue-comment-tag@v0.1.10
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           team: rajbos
