@@ -251,8 +251,6 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
     
     // Calculate excess cost
-    // Note: requestsUsed in the CSV already includes the model multiplier,
-    // so we don't multiply by the multiplier again
     groupedSummary[key].excessCost = groupedSummary[key].exceedingRequests * EXCESS_REQUEST_COST;
   });
   
@@ -955,8 +953,6 @@ export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = C
     const numDays = datesForAverage.length;
 
     // Project extra requests per model over remaining days
-    // Note: requestsUsed in the CSV already includes the model multiplier,
-    // so we don't multiply by the multiplier again
     Object.entries(modelTotals).forEach(([model, total]) => {
       const multiplier = getModelMultiplier(model);
       if (multiplier === 0) return; // Free models have no cost
