@@ -60,6 +60,10 @@ export default defineConfig({
       ])
     ),
   },
+  // Workaround: Tailwind CSS 4.x generates CSS patterns (e.g. @media container queries) that
+  // lightningcss (Vite 8's default CSS minifier) cannot parse. errorRecovery allows the build
+  // to succeed by skipping unrecognised CSS rather than failing. Monitor lightningcss/Tailwind
+  // releases for when this can be removed.
   css: {
     lightningcss: {
       errorRecovery: true,

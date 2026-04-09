@@ -20,6 +20,8 @@
     /* Linting */
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+    // Required for TypeScript 6.0: baseUrl is deprecated in TS6 but still needed for path aliases.
+    // Remove when migrating to moduleResolution: "bundler" with explicit path mappings.
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
