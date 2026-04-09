@@ -251,8 +251,6 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
     
     // Calculate excess cost
-    // Note: requestsUsed in the CSV already includes the model multiplier,
-    // so we don't multiply by the multiplier again
     // Free models (multiplier = 0) have no excess cost
     if (groupedSummary[key].multiplier === 0) {
       groupedSummary[key].excessCost = 0;
