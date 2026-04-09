@@ -3,11 +3,16 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     groups:
       npm-dependencies:
         patterns:
           - "*"
+
+  - package-ecosystem: "actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
 
   - package-ecosystem: "devcontainers"
     directory: "/"
