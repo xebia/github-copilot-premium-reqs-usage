@@ -251,7 +251,12 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
     
     // Calculate excess cost
-    groupedSummary[key].excessCost = groupedSummary[key].exceedingRequests * groupedSummary[key].multiplier * EXCESS_REQUEST_COST;
+    // Free models (multiplier = 0) have no excess cost
+    if (groupedSummary[key].multiplier === 0) {
+      groupedSummary[key].excessCost = 0;
+    } else {
+      groupedSummary[key].excessCost = groupedSummary[key].exceedingRequests * EXCESS_REQUEST_COST;
+    }
   });
   
   // Convert to array and sort by total requests (descending)
@@ -396,7 +401,7 @@ export const MODEL_MULTIPLIERS: Record<string, number> = {
 };
 
 // Default models that should be grouped
-export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'GPT-5 mini', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
 
 function normalizeModelName(model: string): string {
   return model.replace(/^Auto:\s*/, '').trim();
@@ -952,13 +957,13 @@ export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = C
 
     const numDays = datesForAverage.length;
 
-    // Project extra requests per model over remaining days and apply cost multiplier
+    // Project extra requests per model over remaining days
     Object.entries(modelTotals).forEach(([model, total]) => {
       const multiplier = getModelMultiplier(model);
       if (multiplier === 0) return; // Free models have no cost
       const dailyAvg = total / numDays;
       const projectedExtra = dailyAvg * remainingDays;
-      totalExpectedCost += projectedExtra * multiplier * EXCESS_REQUEST_COST;
+      totalExpectedCost += projectedExtra * EXCESS_REQUEST_COST;
     });
   });
 
