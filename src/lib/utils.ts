@@ -897,7 +897,9 @@ export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = C
   if (!lastDate) return 0;
 
   const lastDateObj = new Date(lastDate);
+  const daysElapsed = lastDateObj.getDate();
   const totalDaysInMonth = new Date(lastDateObj.getFullYear(), lastDateObj.getMonth() + 1, 0).getDate();
+  const isPartialMonth = daysElapsed < totalDaysInMonth;
 
   // Group all items by user
   const userDataMap: Record<string, CopilotUsageData[]> = {};
@@ -907,6 +909,67 @@ export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = C
   });
 
   let totalExpectedCost = 0;
+
+  if (isPartialMonth) {
+    const remainingDaysInMonth = totalDaysInMonth - daysElapsed;
+
+    Object.values(userDataMap).forEach(userItems => {
+      if (!userItems.length) return;
+
+      // Group by date (YYYY-MM-DD), sorted ascending.
+      // We keep the same "exclude latest usage day" averaging pattern to avoid partial-day skew.
+      const byDate: Record<string, CopilotUsageData[]> = {};
+      userItems.forEach(item => {
+        const date = item.timestamp.toISOString().split('T')[0];
+        if (!byDate[date]) byDate[date] = [];
+        byDate[date].push(item);
+      });
+      const sortedDates = Object.keys(byDate).sort();
+
+      let datesForAverage = sortedDates.slice(0, -1);
+      if (datesForAverage.length === 0) {
+        datesForAverage = sortedDates;
+      }
+      if (datesForAverage.length === 0) return;
+
+      const historicalModelTotals: Record<string, number> = {};
+      datesForAverage.forEach(date => {
+        byDate[date].forEach(item => {
+          historicalModelTotals[item.model] = (historicalModelTotals[item.model] || 0) + item.requestsUsed;
+        });
+      });
+
+      const currentModelTotals: Record<string, number> = {};
+      userItems.forEach(item => {
+        currentModelTotals[item.model] = (currentModelTotals[item.model] || 0) + item.requestsUsed;
+      });
+
+      const projectedModelTotals: Record<string, number> = {};
+      const averagingDays = datesForAverage.length;
+      Object.entries(currentModelTotals).forEach(([model, currentTotal]) => {
+        const historicalTotal = historicalModelTotals[model] || 0;
+        const dailyAverage = historicalTotal / averagingDays;
+        projectedModelTotals[model] = currentTotal + dailyAverage * remainingDaysInMonth;
+      });
+
+      const projectedMonthlyTotal = Object.values(projectedModelTotals).reduce((sum, value) => sum + value, 0);
+      const projectedExcess = projectedMonthlyTotal - planLimit;
+      if (projectedExcess <= 0 || projectedMonthlyTotal <= 0) return;
+
+      // Allocate only the projected amount above the free plan quota across models,
+      // then apply each model multiplier to compute cost.
+      Object.entries(projectedModelTotals).forEach(([model, projectedTotalForModel]) => {
+        const multiplier = getModelMultiplier(model);
+        if (multiplier === 0) return;
+
+        const modelShare = projectedTotalForModel / projectedMonthlyTotal;
+        const projectedExcessForModel = projectedExcess * modelShare;
+        totalExpectedCost += projectedExcessForModel * multiplier * EXCESS_REQUEST_COST;
+      });
+    });
+
+    return totalExpectedCost;
+  }
 
   Object.values(userDataMap).forEach(userItems => {
     // Only process users who have reached the plan limit
