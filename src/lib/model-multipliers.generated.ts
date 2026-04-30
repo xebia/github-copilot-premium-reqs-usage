@@ -15,7 +15,7 @@ export const CURRENT_MODEL_MULTIPLIERS: Record<string, number> = {
   'Claude Sonnet 4.5': 1,
   'Claude Sonnet 4.6': 1,
   'Gemini 2.5 Pro': 1,
-  'Gemini 3 Flash': 0.33,
+  'Gemini 3 Flash': 0.5,
   'Gemini 3.1 Pro': 1,
   'GPT-4.1': 0,
   'GPT-5 mini': 0,
