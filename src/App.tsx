@@ -541,62 +541,6 @@ function App() {
     return data.filter(item => item.user === selectedSearchUser);
   }, [data, selectedSearchUser]);
 
-  // Reprocess data when month selection changes
-  useEffect(() => {
-    if (rawData && selectedMonth) {
-      processDataForMonth(rawData, selectedMonth);
-    }
-  }, [selectedMonth, rawData, selectedPlan]);
-  
-  // Reprocess display data when user selection changes
-  useEffect(() => {
-    if (displayData && displayData.length > 0) {
-      // Get unique models from display data
-      const models = Array.from(new Set(displayData.map(item => item.model)));
-      setUniqueModels(models);
-      
-      // Aggregate data by day and model for display data
-      const aggregated = aggregateDataByDay(displayData);
-      setAggregatedData(aggregated);
-      
-      // Get model usage summary for display data
-      const summary = getModelUsageSummary(displayData);
-      setModelSummary(summary);
-      
-      // Get daily model data for bar chart for display data
-      const dailyData = getDailyModelData(displayData);
-      setDailyModelData(dailyData);
-      
-      // Get power users data for display data
-      const powerUsers = getPowerUsers(displayData);
-      setPowerUserSummary(powerUsers);
-      
-      // Get power user daily breakdown for display data
-      const powerUserNames = powerUsers.powerUsers.map(user => user.user);
-      const powerUserBreakdown = getPowerUserDailyBreakdown(displayData, powerUserNames);
-      setPowerUserDailyBreakdown(powerUserBreakdown);
-      
-      // Get count of users exceeding quota for display data
-      const exceedingUsersCount = getUniqueUsersExceedingQuota(displayData, selectedPlan);
-      setUsersExceedingQuota(exceedingUsersCount);
-      
-      // Compute exceeded users overview for the overview dialog
-      setExceededUsersOverviewData(getExceededUsersOverview(displayData));
-      
-      // Get projected count of users who will exceed quota by month-end for display data
-      const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(displayData, selectedPlan);
-      setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
-      
-      // Get projected users details for display data
-      const projectedDetails = getProjectedUsersExceedingQuotaDetails(displayData, selectedPlan);
-      setProjectedUsersData(projectedDetails);
-      
-      // Get the last date available in the display data
-      const lastDate = getLastDateFromData(displayData);
-      setLastDateAvailable(lastDate);
-    }
-  }, [displayData, selectedPlan]);
-
   /**
    * Process data for a specific month and update all derived state
    * This function aggregates and processes data for the selected month only
@@ -663,7 +607,63 @@ function App() {
       setUserAnalysisData(analysisData);
     }
   }, [selectedPlan, selectedSearchUser]);
+
+  // Reprocess data when month selection changes
+  useEffect(() => {
+    if (rawData && selectedMonth) {
+      processDataForMonth(rawData, selectedMonth);
+    }
+  }, [selectedMonth, rawData, selectedPlan, processDataForMonth]);
   
+  // Reprocess display data when user selection changes
+  useEffect(() => {
+    if (displayData && displayData.length > 0) {
+      // Get unique models from display data
+      const models = Array.from(new Set(displayData.map(item => item.model)));
+      setUniqueModels(models);
+      
+      // Aggregate data by day and model for display data
+      const aggregated = aggregateDataByDay(displayData);
+      setAggregatedData(aggregated);
+      
+      // Get model usage summary for display data
+      const summary = getModelUsageSummary(displayData);
+      setModelSummary(summary);
+      
+      // Get daily model data for bar chart for display data
+      const dailyData = getDailyModelData(displayData);
+      setDailyModelData(dailyData);
+      
+      // Get power users data for display data
+      const powerUsers = getPowerUsers(displayData);
+      setPowerUserSummary(powerUsers);
+      
+      // Get power user daily breakdown for display data
+      const powerUserNames = powerUsers.powerUsers.map(user => user.user);
+      const powerUserBreakdown = getPowerUserDailyBreakdown(displayData, powerUserNames);
+      setPowerUserDailyBreakdown(powerUserBreakdown);
+      
+      // Get count of users exceeding quota for display data
+      const exceedingUsersCount = getUniqueUsersExceedingQuota(displayData, selectedPlan);
+      setUsersExceedingQuota(exceedingUsersCount);
+      
+      // Compute exceeded users overview for the overview dialog
+      setExceededUsersOverviewData(getExceededUsersOverview(displayData));
+      
+      // Get projected count of users who will exceed quota by month-end for display data
+      const projectedExceedingUsersCount = getProjectedUsersExceedingQuota(displayData, selectedPlan);
+      setProjectedUsersExceedingQuota(projectedExceedingUsersCount);
+      
+      // Get projected users details for display data
+      const projectedDetails = getProjectedUsersExceedingQuotaDetails(displayData, selectedPlan);
+      setProjectedUsersData(projectedDetails);
+      
+      // Get the last date available in the display data
+      const lastDate = getLastDateFromData(displayData);
+      setLastDateAvailable(lastDate);
+    }
+  }, [displayData, selectedPlan]);
+
   const handlePowerUserSelect = useCallback((userName: string | null) => {
     setSelectedPowerUser(userName);
   }, []);
