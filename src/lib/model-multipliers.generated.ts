@@ -17,7 +17,6 @@ export const CURRENT_MODEL_MULTIPLIERS: Record<string, number> = {
   'Gemini 2.5 Pro': 1,
   'Gemini 3 Flash': 0.33,
   'Gemini 3.1 Pro': 1,
-  'Goldeneye': 0,
   'GPT-4.1': 0,
   'GPT-5 mini': 0,
   'GPT-5.2': 1,
@@ -31,8 +30,6 @@ export const CURRENT_MODEL_MULTIPLIERS: Record<string, number> = {
 
 // Models with a 0x multiplier (free) are treated as "Default" and grouped together.
 export const CURRENT_DEFAULT_MODELS: string[] = [
-  'Goldeneye',
   'GPT-4.1',
   'GPT-5 mini',
-  'Raptor mini',
 ];

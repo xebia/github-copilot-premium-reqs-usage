@@ -7,8 +7,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - auto-update-models
-
+      - main
+    paths:
+      - .github/workflows/update-model-multipliers.yml
+      - scripts/update-model-multipliers.py
 
 permissions:
   contents: write
