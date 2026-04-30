@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { defaultServerMainFields } from "vite";
+import { CURRENT_MODEL_MULTIPLIERS, CURRENT_DEFAULT_MODELS } from "./model-multipliers.generated";
+import { LEGACY_MODEL_MULTIPLIERS, LEGACY_DEFAULT_MODELS } from "./model-multipliers.legacy";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -338,70 +340,26 @@ export const PLAN_MONTHLY_LIMITS = {
   [COPILOT_PLANS.ENTERPRISE]: 1000
 } as const;
 
-// Model multipliers based on GitHub documentation (for paid plans)
+// Model multipliers based on GitHub documentation (for paid plans).
 // Uses display names as they appear in GitHub Copilot exports.
+//
+// The current models are sourced from rajbos/github-copilot-model-notifier and
+// refreshed daily by `scripts/update-model-multipliers.py`. Legacy entries
+// (older lowercase / dated names) are kept for backward compatibility with
+// historical CSV exports. Edit those in `model-multipliers.legacy.ts`.
+//
+// Legacy entries are spread first so that, in case of a name collision, the
+// current generated value wins.
 export const MODEL_MULTIPLIERS: Record<string, number> = {
-  // Current default models (0x multiplier for paid plans)
-  'GPT-4.1': 0,
-  'GPT-4o': 0,
-  'GPT-5 mini': 0,
-  'Raptor mini': 0,
-
-  // OpenAI models
-  'GPT-5.1': 1,
-  'GPT-5.1-Codex': 1,
-  'GPT-5.1-Codex-Mini': 0.33,
-  'GPT-5.1-Codex-Max': 1,
-  'GPT-5.2': 1,
-  'GPT-5.2-Codex': 1,
-  'GPT-5.3-Codex': 1,
-  'GPT-5.4': 1,
-  'GPT-5.4 mini': 0.33,
-
-  // Anthropic models
-  'Claude Haiku 4.5': 0.33,
-  'Claude Sonnet 4': 1,
-  'Claude Sonnet 4.5': 1,
-  'Claude Sonnet 4.6': 1,
-  'Claude Opus 4.5': 3,
-  'Claude Opus 4.6': 3,
-  'Claude Opus 4.6 (fast mode) (preview)': 30,
-
-  // Google models
-  'Gemini 2.5 Pro': 1,
-  'Gemini 3 Flash': 0.33,
-  'Gemini 3 Pro': 1,
-  'Gemini 3.1 Pro': 1,
-
-  // xAI and other models
-  'Grok Code Fast 1': 0.25,
-  'Goldeneye': 1,
-
-  // Backward compatibility for older exports
-  'gpt-4o-2024-11-20': 0,
-  'gpt-4.1-2025-04-14': 0,
-  'gpt-4o': 0,
-  'gpt-4.1': 0,
-  'gpt-4.5': 50,
-  'gpt-4.1-vision': 0,
-  'claude-sonnet-3.5': 1,
-  'claude-sonnet-3.7': 1,
-  'claude-sonnet-3.7-thinking': 1.25,
-  'claude-sonnet-4': 1,
-  'claude-opus-4': 10,
-  'gemini-2.0-flash': 0.25,
-  'gemini-2.5-pro': 1,
-  'o1': 10,
-  'o3': 1,
-  'o3-mini': 0.33,
-  'o3-mini-2025-01-31': 0.33,
-  'o4-mini': 0.33,
-  'o4-mini-2025-04-16': 0.33,
-  // Add other models as needed - fallback to 1x for unknown models
+  ...LEGACY_MODEL_MULTIPLIERS,
+  ...CURRENT_MODEL_MULTIPLIERS,
 };
 
-// Default models that should be grouped
-export const DEFAULT_MODELS = ['GPT-4o', 'GPT-4.1', 'GPT-5 mini', 'gpt-4o-2024-11-20', 'gpt-4.1-2025-04-14'];
+// Default models that should be grouped under "Default" in the UI.
+export const DEFAULT_MODELS: string[] = [
+  ...CURRENT_DEFAULT_MODELS,
+  ...LEGACY_DEFAULT_MODELS,
+];
 
 function normalizeModelName(model: string): string {
   return model.replace(/^Auto:\s*/, '').trim();
