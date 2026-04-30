@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  update:
+  update-model-multipliers:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Run model multiplier updater
+      - name: Check for updates and generate model multipliers
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/update-model-multipliers.py
