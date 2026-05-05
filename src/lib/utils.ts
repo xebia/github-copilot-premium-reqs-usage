@@ -298,8 +298,9 @@ export interface DailyOveruserData {
 }
 
 /**
- * For each day, compute how many unique users had any exceeding request,
- * and what percentage of active users that represents.
+ * For each day, compute the cumulative count of unique users who have ever had an
+ * exceeding request up to and including that day, as a percentage of all unique
+ * users seen up to and including that day.
  */
 export function getDailyOveruserPercentage(data: CopilotUsageData[]): DailyOveruserData[] {
   const dailyData: Record<string, { totalUsers: Set<string>; overusers: Set<string> }> = {};
@@ -315,14 +316,21 @@ export function getDailyOveruserPercentage(data: CopilotUsageData[]): DailyOveru
     }
   });
 
-  return Object.entries(dailyData)
-    .map(([date, { totalUsers, overusers }]) => ({
+  const sortedDates = Object.keys(dailyData).sort();
+  const cumulativeUsers = new Set<string>();
+  const cumulativeOverusers = new Set<string>();
+
+  return sortedDates.map(date => {
+    const { totalUsers, overusers } = dailyData[date];
+    totalUsers.forEach(u => cumulativeUsers.add(u));
+    overusers.forEach(u => cumulativeOverusers.add(u));
+    return {
       date,
-      totalUsers: totalUsers.size,
-      overusers: overusers.size,
-      percentage: totalUsers.size > 0 ? (overusers.size / totalUsers.size) * 100 : 0,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+      totalUsers: cumulativeUsers.size,
+      overusers: cumulativeOverusers.size,
+      percentage: cumulativeUsers.size > 0 ? (cumulativeOverusers.size / cumulativeUsers.size) * 100 : 0,
+    };
+  });
 }
 
 // Power user interfaces and functions
