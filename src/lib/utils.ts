@@ -290,6 +290,41 @@ export function getDailyModelData(data: CopilotUsageData[]): DailyModelData[] {
   });
 }
 
+export interface DailyOveruserData {
+  date: string;
+  totalUsers: number;
+  overusers: number;
+  percentage: number;
+}
+
+/**
+ * For each day, compute how many unique users had any exceeding request,
+ * and what percentage of active users that represents.
+ */
+export function getDailyOveruserPercentage(data: CopilotUsageData[]): DailyOveruserData[] {
+  const dailyData: Record<string, { totalUsers: Set<string>; overusers: Set<string> }> = {};
+
+  data.forEach(item => {
+    const date = item.timestamp.toISOString().split('T')[0];
+    if (!dailyData[date]) {
+      dailyData[date] = { totalUsers: new Set(), overusers: new Set() };
+    }
+    dailyData[date].totalUsers.add(item.user);
+    if (item.exceedsQuota) {
+      dailyData[date].overusers.add(item.user);
+    }
+  });
+
+  return Object.entries(dailyData)
+    .map(([date, { totalUsers, overusers }]) => ({
+      date,
+      totalUsers: totalUsers.size,
+      overusers: overusers.size,
+      percentage: totalUsers.size > 0 ? (overusers.size / totalUsers.size) * 100 : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // Power user interfaces and functions
 export interface PowerUserData {
   user: string;
