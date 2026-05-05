@@ -2010,7 +2010,7 @@ function App() {
               <>
                 <div className="flex justify-between items-center mb-2 mt-8">
                   <h2 className="text-2xl font-semibold">
-                    % Users with Overage Costs per Day
+                    % Users with Overage Costs (Cumulative)
                     {selectedSearchUser && (
                       <span className="ml-2 text-lg font-medium text-blue-600">
                         - {selectedSearchUser}
@@ -2050,9 +2050,9 @@ function App() {
                               <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                                 <div className="font-medium mb-2">{label}</div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                                  <span>Users with overage:</span>
+                                  <span>Cumulative users with overage:</span>
                                   <span className="text-right font-medium">{d?.overusers.toLocaleString()}</span>
-                                  <span>Total active users:</span>
+                                  <span>Cumulative unique users:</span>
                                   <span className="text-right font-medium">{d?.totalUsers.toLocaleString()}</span>
                                   <span>Percentage:</span>
                                   <span className="text-right font-medium text-orange-500">
