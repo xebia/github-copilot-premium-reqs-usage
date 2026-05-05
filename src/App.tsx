@@ -1778,8 +1778,6 @@ function App() {
                         <TableHead className="text-right">Compliant</TableHead>
                         <TableHead className="text-right">Exceeding</TableHead>
                         <TableHead className="text-right">Multiplier</TableHead>
-                        <TableHead className="text-right">Plan Limit</TableHead>
-                        <TableHead className="text-right">Excess Cost</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1790,8 +1788,6 @@ function App() {
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.multiplier}x</TableCell>
-                          <TableCell className="text-right">{getPlanLimit(item)}</TableCell>
-                          <TableCell className="text-right">${item.excessCost.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1808,8 +1804,6 @@ function App() {
                           {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
                         </TableCell>
                         <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right">—</TableCell>
-                        <TableCell className="text-right">${modelSummary.reduce((sum, item) => sum + item.excessCost, 0).toFixed(2)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
