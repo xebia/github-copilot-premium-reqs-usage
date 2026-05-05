@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
-import { UserSquare, ChevronRight, ChevronLeft, Shield } from "lucide-react";
+import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -20,6 +20,7 @@ import {
   CopilotUsageData, 
   ModelUsageSummary,
   DailyModelData,
+  DailyOveruserData,
   PowerUserSummary,
   PowerUserDailyBreakdown,
   ExceededRequestDetail,
@@ -32,6 +33,7 @@ import {
   parseCSV,
   getModelUsageSummary,
   getDailyModelData,
+  getDailyOveruserPercentage,
   getPowerUsers,
   getPowerUserDailyData,
   COPILOT_PLANS,
@@ -509,6 +511,9 @@ function App() {
   const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
   const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
   const [expectedExcessCost, setExpectedExcessCost] = useState<number>(0);
+  const [dailyOveruserData, setDailyOveruserData] = useState<DailyOveruserData[]>([]);
+  const [modelSortColumn, setModelSortColumn] = useState<keyof ModelUsageSummary | null>(null);
+  const [modelSortDirection, setModelSortDirection] = useState<'asc' | 'desc'>('desc');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Recalculate users exceeding quota when plan selection changes
@@ -597,6 +602,9 @@ function App() {
     // Get expected excess cost for the selected month
     const expectedCost = getExpectedExcessCost(filteredData, selectedPlan);
     setExpectedExcessCost(expectedCost);
+
+    // Get daily overuser percentage data
+    setDailyOveruserData(getDailyOveruserPercentage(filteredData));
     
     // Reset selected power user when month changes
     setSelectedPowerUser(null);
@@ -661,6 +669,9 @@ function App() {
       // Get the last date available in the display data
       const lastDate = getLastDateFromData(displayData);
       setLastDateAvailable(lastDate);
+
+      // Get daily overuser percentage data
+      setDailyOveruserData(getDailyOveruserPercentage(displayData));
     }
   }, [displayData, selectedPlan]);
 
@@ -791,6 +802,7 @@ function App() {
         setSelectedPowerUser(null);
         setUsersExceedingQuota(0);
         setLastDateAvailable(null);
+        setDailyOveruserData([]);
       }
     };
     
@@ -885,6 +897,31 @@ function App() {
       .slice(0, 5)
       .map(([model]) => model);
   }, [dailyModelData]);
+
+  // Handle sorting for the Requests per Model table
+  const handleModelSort = useCallback((column: keyof ModelUsageSummary) => {
+    setModelSortColumn(prev => {
+      if (prev === column) {
+        setModelSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+        return prev;
+      }
+      setModelSortDirection('desc');
+      return column;
+    });
+  }, []);
+
+  const sortedModelSummary = useMemo(() => {
+    if (!modelSortColumn) return modelSummary;
+    return [...modelSummary].sort((a, b) => {
+      const aVal = a[modelSortColumn];
+      const bVal = b[modelSortColumn];
+      const dir = modelSortDirection === 'asc' ? 1 : -1;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return (aVal - bVal) * dir;
+      }
+      return String(aVal).localeCompare(String(bVal)) * dir;
+    });
+  }, [modelSummary, modelSortColumn, modelSortDirection]);
 
   const behaviorData = useMemo<BehaviorScatterPoint[]>(() => {
     if (!displayData || !displayData.length) return [];
@@ -1773,15 +1810,75 @@ function App() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Model</TableHead>
-                        <TableHead className="text-right">Total Requests</TableHead>
-                        <TableHead className="text-right">Compliant</TableHead>
-                        <TableHead className="text-right">Exceeding</TableHead>
-                        <TableHead className="text-right">Multiplier</TableHead>
+                        <TableHead>
+                          <button
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('model')}
+                          >
+                            Model
+                            {modelSortColumn === 'model' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('totalRequests')}
+                          >
+                            Total Requests
+                            {modelSortColumn === 'totalRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('compliantRequests')}
+                          >
+                            Compliant
+                            {modelSortColumn === 'compliantRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('exceedingRequests')}
+                          >
+                            Exceeding
+                            {modelSortColumn === 'exceedingRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('multiplier')}
+                          >
+                            Multiplier
+                            {modelSortColumn === 'multiplier' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {modelSummary.map((item) => (
+                      {sortedModelSummary.map((item) => (
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
@@ -1907,6 +2004,78 @@ function App() {
                 </LineChart>
               </ChartContainer>
             </div>
+
+            {/* % Users with Overage Costs per Day */}
+            {dailyOveruserData.length > 0 && dailyOveruserData.some(d => d.overusers > 0) && (
+              <>
+                <div className="flex justify-between items-center mb-2 mt-8">
+                  <h2 className="text-2xl font-semibold">
+                    % Users with Overage Costs per Day
+                    {selectedSearchUser && (
+                      <span className="ml-2 text-lg font-medium text-blue-600">
+                        - {selectedSearchUser}
+                      </span>
+                    )}
+                  </h2>
+                  {lastDateAvailable && (
+                    <div className="text-sm text-muted-foreground">
+                      Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                    </div>
+                  )}
+                </div>
+                <Separator className="mb-6" />
+                <div className="bg-card p-4 rounded-lg border mb-8">
+                  <ChartContainer
+                    config={{ percentage: { color: "#f97316" } }}
+                    className="h-[300px] w-full"
+                  >
+                    <BarChart data={dailyOveruserData}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: 'var(--foreground)' }}
+                        tickLine={{ stroke: 'var(--border)' }}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--foreground)' }}
+                        tickLine={{ stroke: 'var(--border)' }}
+                        tickFormatter={(v) => `${v.toFixed(0)}%`}
+                        domain={[0, 100]}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const d = dailyOveruserData.find(x => x.date === label);
+                            return (
+                              <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                <div className="font-medium mb-2">{label}</div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                  <span>Users with overage:</span>
+                                  <span className="text-right font-medium">{d?.overusers.toLocaleString()}</span>
+                                  <span>Total active users:</span>
+                                  <span className="text-right font-medium">{d?.totalUsers.toLocaleString()}</span>
+                                  <span>Percentage:</span>
+                                  <span className="text-right font-medium text-orange-500">
+                                    {d ? `${d.percentage.toFixed(1)}%` : '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar
+                        dataKey="percentage"
+                        name="% Users with Overage"
+                        fill="#f97316"
+                        radius={[3, 3, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              </>
+            )}
 
             {/* Bar Chart - Requests per Model per Day (All Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
