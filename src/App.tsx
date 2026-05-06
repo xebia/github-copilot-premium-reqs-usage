@@ -772,7 +772,7 @@ function App() {
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Unknown error';
-            throw new Error(files.length > 1 ? `"${fileName}": ${msg}` : msg);
+            throw new Error(files.length > 1 ? `"${fileName}": ${msg}` : msg, { cause: err });
           }
         }
 
