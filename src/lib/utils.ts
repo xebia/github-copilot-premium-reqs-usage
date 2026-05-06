@@ -300,9 +300,13 @@ export interface DailyOveruserData {
 /**
  * For each day, compute the cumulative count of unique users who have ever had an
  * exceeding request up to and including that day, as a percentage of all unique
- * users seen up to and including that day.
+ * users seen up to and including that day (or a fixed total when provided).
+ *
+ * @param fixedTotalUsers - When provided, use this as the denominator for the
+ *   percentage instead of the count of unique users seen in the data. This lets
+ *   callers express overages as a share of all licensed seats, not just active users.
  */
-export function getDailyOveruserPercentage(data: CopilotUsageData[]): DailyOveruserData[] {
+export function getDailyOveruserPercentage(data: CopilotUsageData[], fixedTotalUsers?: number): DailyOveruserData[] {
   const dailyData: Record<string, { totalUsers: Set<string>; overusers: Set<string> }> = {};
 
   data.forEach(item => {
@@ -324,11 +328,12 @@ export function getDailyOveruserPercentage(data: CopilotUsageData[]): DailyOveru
     const { totalUsers, overusers } = dailyData[date];
     totalUsers.forEach(u => cumulativeUsers.add(u));
     overusers.forEach(u => cumulativeOverusers.add(u));
+    const denominator = fixedTotalUsers ?? cumulativeUsers.size;
     return {
       date,
-      totalUsers: cumulativeUsers.size,
+      totalUsers: fixedTotalUsers ?? cumulativeUsers.size,
       overusers: cumulativeOverusers.size,
-      percentage: cumulativeUsers.size > 0 ? (cumulativeOverusers.size / cumulativeUsers.size) * 100 : 0,
+      percentage: denominator > 0 ? (cumulativeOverusers.size / denominator) * 100 : 0,
     };
   });
 }

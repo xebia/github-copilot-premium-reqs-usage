@@ -7,8 +7,8 @@ describe('Spinner Functionality', () => {
     render(<App />);
     
     // Check that the component renders without crashing
-    expect(screen.getByText('Upload CSV File')).toBeInTheDocument();
-    expect(screen.getByText('Select CSV File')).toBeInTheDocument();
+    expect(screen.getByText('Upload CSV Files')).toBeInTheDocument();
+    expect(screen.getByText('Select CSV Files')).toBeInTheDocument();
     
     // The spinner functionality is integrated into the existing upload component
     // The actual spinner will only show during file processing which requires
