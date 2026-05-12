@@ -11,6 +11,7 @@ interface UserSearchProps {
   selectedUser: string | null;
   onUserChange: (user: string | null) => void;
   disabled?: boolean;
+  displayUser?: (name: string) => string;
 }
 
 interface UserStats {
@@ -27,7 +28,8 @@ export function UserSearch({
   data, 
   selectedUser, 
   onUserChange, 
-  disabled = false 
+  disabled = false,
+  displayUser,
 }: UserSearchProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -62,13 +64,14 @@ export function UserSearch({
     });
   }, [data]);
 
-  // Filter users based on search input
+  // Filter users based on search input (searches displayed names in demo mode)
   const filteredUsers = useMemo(() => {
     if (!searchValue) return userStats;
-    return userStats.filter(user => 
-      user.username.toLowerCase().includes(searchValue.toLowerCase())
-    );
-  }, [userStats, searchValue]);
+    return userStats.filter(user => {
+      const name = displayUser ? displayUser(user.username) : user.username;
+      return name.toLowerCase().includes(searchValue.toLowerCase());
+    });
+  }, [userStats, searchValue, displayUser]);
 
   const handleUserSelect = (user: string) => {
     onUserChange(user);
@@ -81,7 +84,9 @@ export function UserSearch({
     setSearchValue("");
   };
 
-  const displayValue = selectedUser || "Search for a user...";
+  const displayValue = selectedUser
+    ? (displayUser ? displayUser(selectedUser) : selectedUser)
+    : "Search for a user...";
 
   return (
     <div className="flex items-center gap-3">
@@ -117,13 +122,13 @@ export function UserSearch({
                     {filteredUsers.map((userStat) => (
                       <CommandItem
                         key={userStat.username}
-                        value={userStat.username}
+                        value={displayUser ? displayUser(userStat.username) : userStat.username}
                         onSelect={() => handleUserSelect(userStat.username)}
                         className="cursor-pointer"
                       >
                         <div className="flex w-full items-center justify-between gap-4">
                           <div className="flex-1 truncate">
-                            <span className="font-medium">{userStat.username}</span>
+                            <span className="font-medium">{displayUser ? displayUser(userStat.username) : userStat.username}</span>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
                             <div className="text-right">
