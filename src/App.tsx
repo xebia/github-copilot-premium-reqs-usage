@@ -56,6 +56,7 @@ import {
 } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
 import { UserSearch } from "@/components/UserSearch";
+import { AICCostChart } from "@/components/AICCostChart";
 
 const MODEL_COLORS = [
   "#8B5CF6", // Purple
@@ -2157,6 +2158,25 @@ function App() {
                 </div>
               </>
             )}
+
+            {/* Bar Chart - Requests per Model per Day (All Models) */}
+            <div className="flex justify-between items-center mb-2 mt-8">
+              <h2 className="text-2xl font-semibold">
+                Estimated Cost &amp; AI Credits Usage
+                {selectedSearchUser && (
+                  <span className="ml-2 text-lg font-medium text-blue-600">
+                    - {displayUser(selectedSearchUser)}
+                  </span>
+                )}
+              </h2>
+              {lastDateAvailable && (
+                <div className="text-sm text-muted-foreground">
+                  Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                </div>
+              )}
+            </div>
+            <Separator className="mb-6" />
+            <AICCostChart data={displayData} />
 
             {/* Bar Chart - Requests per Model per Day (All Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
