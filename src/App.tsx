@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
-import { UserSquare, ChevronRight, ChevronLeft, Shield } from "lucide-react";
+import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -20,6 +20,7 @@ import {
   CopilotUsageData, 
   ModelUsageSummary,
   DailyModelData,
+  DailyOveruserData,
   PowerUserSummary,
   PowerUserDailyBreakdown,
   ExceededRequestDetail,
@@ -32,6 +33,7 @@ import {
   parseCSV,
   getModelUsageSummary,
   getDailyModelData,
+  getDailyOveruserPercentage,
   getPowerUsers,
   getPowerUserDailyData,
   COPILOT_PLANS,
@@ -286,7 +288,7 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
       </div>
       <ChartContainer
         config={weeklyChartConfig}
-        className="h-[400px] w-full"
+        className="h-[600px] w-full"
       >
         <BarChart data={selectedWeekDailyData}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -352,11 +354,13 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
 
 type BehaviorScatterChartProps = {
   behaviorData: BehaviorScatterPoint[];
+  displayUser: (name: string) => string;
 };
 
 // Isolated the graph due to latency issues. Allows toggling segments without reprocessing data or re-rendering other graphs.
 const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
   behaviorData,
+  displayUser,
 }: BehaviorScatterChartProps) {
   const [hiddenBehaviorSegments, setHiddenBehaviorSegments] = useState<Set<string>>(new Set());
 
@@ -418,7 +422,7 @@ const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
         })}
       </div>
 
-      <div className="h-[460px] w-full">
+      <div className="h-[600px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -446,7 +450,7 @@ const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
                   const point = payload[0].payload as BehaviorScatterPoint;
                   return (
                     <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
-                      <div className="font-medium mb-2">{point.user}</div>
+                      <div className="font-medium mb-2">{displayUser(point.user)}</div>
                       <div className="space-y-1">
                         <div>Segment: <span className="font-medium">{point.behaviorSegment}</span></div>
                         <div>Utilization: <span className="font-medium">{point.utilizationPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
@@ -509,7 +513,29 @@ function App() {
   const [selectedSearchUser, setSelectedSearchUser] = useState<string | null>(null);
   const [userAnalysisData, setUserAnalysisData] = useState<UserAnalysisData | null>(null);
   const [expectedExcessCost, setExpectedExcessCost] = useState<number>(0);
+  const [dailyOveruserData, setDailyOveruserData] = useState<DailyOveruserData[]>([]);
+  const [modelSortColumn, setModelSortColumn] = useState<keyof ModelUsageSummary | null>(null);
+  const [modelSortDirection, setModelSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [totalLicensedUsers, setTotalLicensedUsers] = useState<number | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Anonymized user map: maps real user names to anonymous "User000N" labels, stable across month selections
+  const userAnonMap = useMemo<Map<string, string>>(() => {
+    if (!rawData) return new Map();
+    const uniqueUsers = Array.from(new Set(rawData.map(item => item.user))).sort();
+    const padLength = String(uniqueUsers.length).length;
+    const map = new Map<string, string>();
+    uniqueUsers.forEach((user, index) => {
+      map.set(user, `User${String(index + 1).padStart(padLength, '0')}`);
+    });
+    return map;
+  }, [rawData]);
+
+  const displayUser = useCallback((name: string): string => {
+    if (!demoMode) return name;
+    return userAnonMap.get(name) ?? name;
+  }, [demoMode, userAnonMap]);
   
   // Recalculate users exceeding quota when plan selection changes
   useEffect(() => {
@@ -597,7 +623,7 @@ function App() {
     // Get expected excess cost for the selected month
     const expectedCost = getExpectedExcessCost(filteredData, selectedPlan);
     setExpectedExcessCost(expectedCost);
-    
+
     // Reset selected power user when month changes
     setSelectedPowerUser(null);
     
@@ -664,6 +690,17 @@ function App() {
     }
   }, [displayData, selectedPlan]);
 
+  // Recompute daily overuser data whenever the display data or total licensed users override changes
+  useEffect(() => {
+    if (displayData && displayData.length > 0) {
+      setDailyOveruserData(
+        getDailyOveruserPercentage(displayData, totalLicensedUsers ?? undefined)
+      );
+    } else {
+      setDailyOveruserData([]);
+    }
+  }, [displayData, totalLicensedUsers]);
+
   const handlePowerUserSelect = useCallback((userName: string | null) => {
     setSelectedPowerUser(userName);
   }, []);
@@ -694,121 +731,118 @@ function App() {
     return getUniqueModelsFromBreakdown(breakdown);
   }, [getFilteredPowerUserBreakdown]);
 
-  const processFile = useCallback((file: File) => {
-    if (!file) return;
-    
-    // Add basic file validation
-    if (!file.type.includes('text') && !file.type.includes('csv') && !file.name.endsWith('.csv')) {
-      toast.error("Please upload a valid CSV or text file.");
-      return;
-    }
-    
+  const resetDataState = useCallback(() => {
+    setData(null);
+    setRawData(null);
+    setAvailableMonths([]);
+    setSelectedMonth('');
+    setAggregatedData([]);
+    setModelSummary([]);
+    setDailyModelData([]);
+    setPowerUserSummary(null);
+    setPowerUserDailyBreakdown([]);
+    setSelectedPowerUser(null);
+    setUsersExceedingQuota(0);
+    setLastDateAvailable(null);
+    setDailyOveruserData([]);
+    setDemoMode(false);
+  }, []);
+
+  const processFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+
     setIsProcessing(true);
-    
-    const reader = new FileReader();
-    
-    reader.onerror = () => {
-      setIsProcessing(false);
-      toast.error("Failed to read the file. The file may be corrupted or unreadable.");
-    };
-    
-    reader.onload = (e) => {
-      try {
-        const csvContent = e.target?.result as string;
-        if (!csvContent) throw new Error("Failed to read file content");
-        
-        // Check if the content looks like text (not binary)
-        if (csvContent.includes('\0')) {
-          throw new Error("File appears to be binary. Please upload a text-based CSV file.");
-        }
-        
-        // Check for minimum content
-        if (csvContent.trim().length === 0) {
-          throw new Error("File is empty. Please upload a CSV file with data.");
-        }
-        
-        const parsedData = parseCSV(csvContent);
-        
-        // Store raw unfiltered data
-        setRawData(parsedData);
-        
-        // Extract available months (current and previous month)
-        const months = getAvailableMonths(parsedData);
-        setAvailableMonths(months);
-        
-        // Auto-select current month if available, otherwise select the first (most recent) month
-        const defaultMonth = months.find(m => m.isCurrentMonth)?.value || months[0]?.value || '';
-        setSelectedMonth(defaultMonth);
-        
-        // Process data for the default selected month
-        if (defaultMonth) {
-          processDataForMonth(parsedData, defaultMonth);
-        }
-        
-        setIsProcessing(false);
-        toast.success(`Loaded ${parsedData.length.toLocaleString()} records successfully`);
-      } catch (error) {
-        // Provide user-friendly error messages  
-        let errorMessage = "Failed to parse CSV file. Please check the format.";
-        
-        if (error instanceof Error) {
-          // Log detailed error information to console for debugging
-          console.error("CSV parsing error details:", error);
-          
-          // Provide more specific error messages based on the error type
-          if (error.message.includes("missing required columns")) {
-            errorMessage = "Invalid CSV format: " + error.message;
-          } else if (error.message.includes("Invalid timestamp")) {
-            errorMessage = "Invalid data format: " + error.message;
-          } else if (error.message.includes("Invalid requests used")) {
-            errorMessage = "Invalid data format: " + error.message;
-          } else if (error.message.includes("Invalid exceeds quota")) {
-            errorMessage = "Invalid data format: " + error.message;
-          } else if (error.message.includes("Invalid CSV row format")) {
-            errorMessage = "Invalid CSV structure: " + error.message;
-          } else if (error.message.includes("binary")) {
-            errorMessage = error.message;
-          } else if (error.message.includes("empty")) {
-            errorMessage = error.message;
-          } else if (error.message.includes("header")) {
-            errorMessage = "Invalid CSV format: " + error.message;
-          } else {
-            errorMessage = error.message;
+
+    const readFile = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error(`Failed to read "${file.name}". The file may be corrupted.`));
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          if (!content) reject(new Error(`Failed to read "${file.name}"`));
+          else resolve(content);
+        };
+        reader.readAsText(file);
+      });
+
+    Promise.all(files.map(readFile))
+      .then((contents) => {
+        const allData: CopilotUsageData[] = [];
+        const seenKeys = new Set<string>();
+
+        for (let i = 0; i < contents.length; i++) {
+          const csvContent = contents[i];
+          const fileName = files[i].name;
+
+          try {
+            if (csvContent.includes('\0')) {
+              throw new Error(`File appears to be binary. Please upload a text-based CSV file.`);
+            }
+            if (csvContent.trim().length === 0) {
+              throw new Error(`File is empty. Please upload a CSV file with data.`);
+            }
+
+            const parsedData = parseCSV(csvContent);
+
+            for (const record of parsedData) {
+              const key = `${record.timestamp.toISOString()}_${record.user}_${record.model}_${record.requestsUsed}`;
+              if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                allData.push(record);
+              }
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            throw new Error(files.length > 1 ? `"${fileName}": ${msg}` : msg, { cause: err });
           }
         }
-        
+
+        if (allData.length === 0) {
+          throw new Error('No records found in the uploaded files.');
+        }
+
+        setRawData(allData);
+
+        const months = getAvailableMonths(allData);
+        setAvailableMonths(months);
+
+        const defaultMonth = months.find(m => m.isCurrentMonth)?.value || months[0]?.value || '';
+        setSelectedMonth(defaultMonth);
+
+        if (defaultMonth) {
+          processDataForMonth(allData, defaultMonth);
+        }
+
         setIsProcessing(false);
-        toast.error(errorMessage);
-        setData(null);
-        setRawData(null);
-        setAvailableMonths([]);
-        setSelectedMonth('');
-        setAggregatedData([]);
-        setModelSummary([]);
-        setDailyModelData([]);
-        setPowerUserSummary(null);
-        setPowerUserDailyBreakdown([]);
-        setSelectedPowerUser(null);
-        setUsersExceedingQuota(0);
-        setLastDateAvailable(null);
-      }
-    };
-    
-    reader.readAsText(file);
-  }, [processDataForMonth]);
-  
+        setDemoMode(true);
+        const label = files.length > 1
+          ? `${files.length} files (${allData.length.toLocaleString()} records)`
+          : `${allData.length.toLocaleString()} records`;
+        toast.success(`Loaded ${label} successfully`);
+      })
+      .catch((error) => {
+        console.error('CSV parsing error:', error);
+        setIsProcessing(false);
+        toast.error(error instanceof Error ? error.message : 'Failed to process the uploaded file(s).');
+        resetDataState();
+      });
+  }, [processDataForMonth, resetDataState]);
+
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (isProcessing) return;
-    
-    const file = event.target.files?.[0];
-    if (file) {
-      processFile(file);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const validFiles = Array.from(files).filter(
+        f => f.type.includes('text') || f.type.includes('csv') || f.name.endsWith('.csv')
+      );
+      if (validFiles.length > 0) {
+        processFiles(validFiles);
+      } else {
+        toast.error('Please upload valid CSV files.');
+      }
     }
-    // Reset the input value to allow selecting the same file again
-    if (event.target) {
-      event.target.value = '';
-    }
-  }, [processFile, isProcessing]);
+    if (event.target) event.target.value = '';
+  }, [processFiles, isProcessing]);
   
   const handleButtonClick = () => {
     if (isProcessing) return;
@@ -837,14 +871,19 @@ function App() {
     
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      const file = files[0];
-      if (file.type === "text/csv" || file.name.endsWith('.csv') || file.type.includes('text')) {
-        processFile(file);
-      } else {
-        toast.error("Please upload a CSV file. Supported formats: .csv files or text files with CSV content.");
+      const validFiles = Array.from(files).filter(
+        f => f.type === 'text/csv' || f.name.endsWith('.csv') || f.type.includes('text')
+      );
+      if (validFiles.length === 0) {
+        toast.error('Please upload CSV files. Supported formats: .csv files or text files with CSV content.');
+        return;
       }
+      if (validFiles.length < files.length) {
+        toast.warning(`${files.length - validFiles.length} non-CSV file(s) were skipped.`);
+      }
+      processFiles(validFiles);
     }
-  }, [processFile, isProcessing]);
+  }, [processFiles, isProcessing]);
   
   // Generate chart data grouped by date with total compliant and exceeding requests
   const chartData = useCallback(() => {
@@ -885,6 +924,31 @@ function App() {
       .slice(0, 5)
       .map(([model]) => model);
   }, [dailyModelData]);
+
+  // Handle sorting for the Requests per Model table
+  const handleModelSort = useCallback((column: keyof ModelUsageSummary) => {
+    setModelSortColumn(prev => {
+      if (prev === column) {
+        setModelSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+        return prev;
+      }
+      setModelSortDirection('desc');
+      return column;
+    });
+  }, []);
+
+  const sortedModelSummary = useMemo(() => {
+    if (!modelSortColumn) return modelSummary;
+    return [...modelSummary].sort((a, b) => {
+      const aVal = a[modelSortColumn];
+      const bVal = b[modelSortColumn];
+      const dir = modelSortDirection === 'asc' ? 1 : -1;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return (aVal - bVal) * dir;
+      }
+      return String(aVal).localeCompare(String(bVal)) * dir;
+    });
+  }, [modelSummary, modelSortColumn, modelSortDirection]);
 
   const behaviorData = useMemo<BehaviorScatterPoint[]>(() => {
     if (!displayData || !displayData.length) return [];
@@ -1077,7 +1141,7 @@ function App() {
   };
 
   return (
-    <div className="container max-w-7xl mx-auto py-8 px-4 min-h-screen">
+    <div className="container max-w-[1600px] mx-auto py-8 px-4 min-h-screen">
       <header className="mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -1086,17 +1150,31 @@ function App() {
               GitHub Copilot Premium Requests Usage Analyzer
             </h1>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <a 
-              href="https://github.com/devops-actions/github-copilot-premium-reqs-usage" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-2"
-            >
-              <GithubLogo size={16} />
-              Contribute
-            </a>
-          </Button>
+          <div className="flex items-center gap-2">
+            {data && data.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { resetDataState(); }}
+                disabled={isProcessing}
+                className="flex items-center gap-2"
+              >
+                <Upload size={14} />
+                Upload New Files
+              </Button>
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <a 
+                href="https://github.com/devops-actions/github-copilot-premium-reqs-usage" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2"
+              >
+                <GithubLogo size={16} />
+                Contribute
+              </a>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -1148,14 +1226,14 @@ function App() {
             </div>
             
             <h2 className="text-xl font-medium mb-2">
-              {isProcessing ? "Processing CSV..." : "Upload CSV File"}
+              {isProcessing ? "Processing CSV..." : "Upload CSV Files"}
             </h2>
             <p className="text-muted-foreground mb-4 max-w-md mx-auto">
               {isProcessing 
-                ? "Please wait while we process your file..." 
+                ? "Please wait while we process your files..." 
                 : isDragging 
-                  ? "Drop your file here..." 
-                  : "Upload your GitHub Copilot premium requests usage CSV export to visualize the data. Drag and drop or select a file."}
+                  ? "Drop your files here..." 
+                  : "Upload your GitHub Copilot premium requests usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
             </p>
             
             <Button 
@@ -1163,13 +1241,14 @@ function App() {
               className="cursor-pointer"
               disabled={isProcessing}
             >
-              {isProcessing ? "Processing..." : "Select CSV File"}
+              {isProcessing ? "Processing..." : "Select CSV Files"}
             </Button>
             <input
               ref={fileInputRef}
               id="csv-upload"
               type="file"
               accept=".csv"
+              multiple
               onChange={handleFileUpload}
               className="hidden"
               disabled={isProcessing}
@@ -1187,7 +1266,7 @@ function App() {
                   Usage Statistics
                   {selectedSearchUser && (
                     <span className="ml-2 text-lg font-medium text-blue-600">
-                      - {selectedSearchUser}
+                      - {displayUser(selectedSearchUser)}
                     </span>
                   )}
                 </h2>
@@ -1216,7 +1295,7 @@ function App() {
                   <h2 className="text-2xl font-semibold mb-2">User Analysis</h2>
                   <p className="text-muted-foreground">
                     {selectedSearchUser 
-                      ? `Currently viewing data for ${selectedSearchUser}. All panels are filtered to show only this user's activity.`
+                      ? `Currently viewing data for ${displayUser(selectedSearchUser)}. All panels are filtered to show only this user's activity.`
                       : "Search for a specific user to view their detailed usage statistics"
                     }
                   </p>
@@ -1237,6 +1316,7 @@ function App() {
                   selectedUser={selectedSearchUser}
                   onUserChange={handleSearchUserSelect}
                   disabled={isProcessing}
+                  displayUser={displayUser}
                 />
               </div>
               
@@ -1244,7 +1324,7 @@ function App() {
                 <Card>
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Analysis for {userAnalysisData.user}</h3>
+                      <h3 className="text-lg font-semibold">Analysis for {displayUser(userAnalysisData.user)}</h3>
                     </div>
                     
                     {/* User Statistics Summary */}
@@ -1358,6 +1438,34 @@ function App() {
                       <span className="text-lg font-bold">
                         {new Set(displayData.map(item => item.user)).size.toLocaleString()}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-2" title="Total licensed seats — used as the denominator in the % Users with Overage chart. Leave empty to derive from active users in the data.">
+                      <span className="text-sm text-muted-foreground">Total Licensed Users:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="From data"
+                        value={totalLicensedUsers ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setTotalLicensedUsers(null);
+                          } else {
+                            const num = parseInt(val, 10);
+                            if (!isNaN(num) && num > 0) setTotalLicensedUsers(num);
+                          }
+                        }}
+                        className="w-24 h-8 text-sm font-bold border rounded px-2 bg-background text-foreground"
+                      />
+                      {totalLicensedUsers !== null && (
+                        <button
+                          onClick={() => setTotalLicensedUsers(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                          title="Clear — revert to active users from data"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Models Used:</span>
@@ -1527,7 +1635,7 @@ function App() {
                                   Power User Requests Breakdown (By Model & Compliance)
                                   {selectedPowerUser && (
                                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                                      - {selectedPowerUser}
+                                      - {displayUser(selectedPowerUser)}
                                     </span>
                                   )}
                                   {selectedPowerUser && (
@@ -1719,7 +1827,7 @@ function App() {
                                             title="Click to view user's request details"
                                           >
                                             <span className={`font-medium transition-colors hover:underline ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-foreground group-hover:text-blue-600'}`}>
-                                              {user.user}
+                                              {displayUser(user.user)}
                                             </span>
                                             <UserSquare className={`h-3 w-3 transition-all duration-200 group-hover:scale-110 opacity-60 group-hover:opacity-100 ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-blue-500'}`} />
                                           </div>
@@ -1738,6 +1846,16 @@ function App() {
                             </SheetContent>
                         </Sheet>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDemoMode(prev => !prev)}
+                      className="flex items-center gap-2 ml-auto"
+                      title={demoMode ? "Show actual user names from the dataset" : "Hide user names and replace with anonymous labels"}
+                    >
+                      {demoMode ? <Eye size={14} /> : <EyeOff size={14} />}
+                      {demoMode ? "Show Actual User Names" : "Enable Demo Mode"}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -1751,7 +1869,7 @@ function App() {
                     Requests per Model
                     {selectedSearchUser && (
                       <span className="ml-2 text-sm font-normal text-blue-600">
-                        - {selectedSearchUser}
+                        - {displayUser(selectedSearchUser)}
                       </span>
                     )}
                   </h3>
@@ -1773,15 +1891,75 @@ function App() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Model</TableHead>
-                        <TableHead className="text-right">Total Requests</TableHead>
-                        <TableHead className="text-right">Compliant</TableHead>
-                        <TableHead className="text-right">Exceeding</TableHead>
-                        <TableHead className="text-right">Multiplier</TableHead>
+                        <TableHead>
+                          <button
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('model')}
+                          >
+                            Model
+                            {modelSortColumn === 'model' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('totalRequests')}
+                          >
+                            Total Requests
+                            {modelSortColumn === 'totalRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('compliantRequests')}
+                          >
+                            Compliant
+                            {modelSortColumn === 'compliantRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('exceedingRequests')}
+                          >
+                            Exceeding
+                            {modelSortColumn === 'exceedingRequests' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('multiplier')}
+                          >
+                            Multiplier
+                            {modelSortColumn === 'multiplier' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {modelSummary.map((item) => (
+                      {sortedModelSummary.map((item) => (
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
@@ -1820,7 +1998,7 @@ function App() {
                 Daily Usage Overview
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -1837,7 +2015,7 @@ function App() {
                   compliant: { color: "#10b981" }, // green
                   exceeding: { color: "#ef4444" }, // red
                 }} 
-                className="h-[400px] w-full"
+                className="h-[600px] w-full"
               >
                 <LineChart data={chartData()}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -1908,13 +2086,85 @@ function App() {
               </ChartContainer>
             </div>
 
+            {/* % Users with Overage Costs per Day */}
+            {dailyOveruserData.length > 0 && dailyOveruserData.some(d => d.overusers > 0) && (
+              <>
+                <div className="flex justify-between items-center mb-2 mt-8">
+                  <h2 className="text-2xl font-semibold">
+                    % Users with Overage Costs (Cumulative)
+                    {selectedSearchUser && (
+                      <span className="ml-2 text-lg font-medium text-blue-600">
+                        - {displayUser(selectedSearchUser)}
+                      </span>
+                    )}
+                  </h2>
+                  {lastDateAvailable && (
+                    <div className="text-sm text-muted-foreground">
+                      Data available through: <span className="font-medium">{lastDateAvailable}</span>
+                    </div>
+                  )}
+                </div>
+                <Separator className="mb-6" />
+                <div className="bg-card p-4 rounded-lg border mb-8">
+                  <ChartContainer
+                    config={{ percentage: { color: "#f97316" } }}
+                    className="h-[400px] w-full"
+                  >
+                    <BarChart data={dailyOveruserData}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: 'var(--foreground)' }}
+                        tickLine={{ stroke: 'var(--border)' }}
+                      />
+                      <YAxis
+                        tick={{ fill: 'var(--foreground)' }}
+                        tickLine={{ stroke: 'var(--border)' }}
+                        tickFormatter={(v) => `${v.toFixed(0)}%`}
+                        domain={[0, 100]}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const d = dailyOveruserData.find(x => x.date === label);
+                            return (
+                              <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                <div className="font-medium mb-2">{label}</div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                  <span>Cumulative users with overage:</span>
+                                  <span className="text-right font-medium">{d?.overusers.toLocaleString()}</span>
+                                  <span>{totalLicensedUsers !== null ? 'Total licensed users:' : 'Cumulative unique users:'}</span>
+                                  <span className="text-right font-medium">{d?.totalUsers.toLocaleString()}</span>
+                                  <span>Percentage:</span>
+                                  <span className="text-right font-medium text-orange-500">
+                                    {d ? `${d.percentage.toFixed(1)}%` : '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar
+                        dataKey="percentage"
+                        name="% Users with Overage"
+                        fill="#f97316"
+                        radius={[3, 3, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
+              </>
+            )}
+
             {/* Bar Chart - Requests per Model per Day (All Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
               <h2 className="text-2xl font-semibold">
                 Requests per Model per Day (All Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -1931,7 +2181,7 @@ function App() {
                   acc[model] = { color };
                   return acc;
                 }, {} as Record<string, { color: string }>)}
-                className="h-[500px] w-full"
+                className="h-[700px] w-full"
               >
                 <BarChart data={allModelsChartData()}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -1992,7 +2242,7 @@ function App() {
                 Requests per Model per Day (Top 5 Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2009,7 +2259,7 @@ function App() {
                   acc[model] = { color };
                   return acc;
                 }, {} as Record<string, { color: string }>)}
-                className="h-[500px] w-full"
+                className="h-[700px] w-full"
               >
                 <BarChart data={barChartData()}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -2070,7 +2320,7 @@ function App() {
                 Top 5 Models per Week
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2089,7 +2339,7 @@ function App() {
                 User Behavior Segments
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2098,7 +2348,7 @@ function App() {
               </div>
             </div>
             <Separator className="mb-6" />
-            <BehaviorScatterChart behaviorData={behaviorData} />
+            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} />
           </div>
         </div>
       )}
@@ -2159,7 +2409,7 @@ function App() {
                       <TableBody>
                         {exceededUsersOverviewData.map((row) => (
                           <TableRow key={row.user}>
-                            <TableCell className="font-medium">{row.user}</TableCell>
+                            <TableCell className="font-medium">{displayUser(row.user)}</TableCell>
                             <TableCell className="text-right">{row.daysExceeded.toLocaleString()}</TableCell>
                             <TableCell className="text-right text-red-600 font-medium">
                               {row.totalExceededRequests.toLocaleString()}
@@ -2198,7 +2448,7 @@ function App() {
           <DialogHeader>
             <DialogTitle>
               Exceeded Request Details
-              {selectedPowerUser && ` - ${selectedPowerUser}`}
+              {selectedPowerUser && ` - ${displayUser(selectedPowerUser)}`}
             </DialogTitle>
           </DialogHeader>
           
@@ -2517,7 +2767,7 @@ function App() {
                               <TableCell className="text-center text-muted-foreground font-medium text-xs">
                                 {index + 1}
                               </TableCell>
-                              <TableCell className="font-medium text-sm" title={user.user}>{user.user}</TableCell>
+                              <TableCell className="font-medium text-sm" title={user.user}>{displayUser(user.user)}</TableCell>
                               <TableCell className="text-right text-sm">
                                 {user.currentRequests.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
                               </TableCell>
