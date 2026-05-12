@@ -15,6 +15,8 @@ export interface CopilotUsageData {
   requestsUsed: number;
   exceedsQuota: boolean;
   totalMonthlyQuota: string;
+  aicQuantity?: number;     // aic_quantity: number of AI credits consumed
+  aicGrossAmount?: number;  // aic_gross_amount: estimated cost in USD under usage-based billing
 }
 
 export interface AggregatedData {
@@ -49,6 +51,9 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     'quantity': 'requestsUsed',
     'exceeds_quota': 'exceedsQuota',
     'total_monthly_quota': 'totalMonthlyQuota',
+    // AIC fields (optional)
+    'aic_quantity': 'aicQuantity',
+    'aic_gross_amount': 'aicGrossAmount',
     // Backward compatibility (old headers)
     'timestamp': 'timestamp',
     'user': 'user',
@@ -112,6 +117,23 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       return val.trim();
     };
 
+    const getOptionalValue = (field: keyof CopilotUsageData): string | undefined => {
+      const idx = fieldToIndex[field];
+      if (idx === undefined) return undefined;
+      let val = matches[idx] || '';
+      val = val.endsWith(',') ? val.slice(0, -1) : val;
+      val = val.replace(/^"(.*)"$/, '$1');
+      const trimmed = val.trim();
+      return trimmed === '' ? undefined : trimmed;
+    };
+
+    const parseOptionalNumber = (value: string | undefined): number | undefined => {
+      if (value === undefined) return undefined;
+      const normalized = value.replace(/,/g, '');
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+
     // Validate and parse fields
     const timestampStr = getValue('timestamp');
     const timestamp = new Date(timestampStr);
@@ -133,6 +155,8 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     }
 
     const totalMonthlyQuota = getValue('totalMonthlyQuota');
+    const aicQuantity = parseOptionalNumber(getOptionalValue('aicQuantity'));
+    const aicGrossAmount = parseOptionalNumber(getOptionalValue('aicGrossAmount'));
 
     return {
       timestamp,
@@ -141,6 +165,8 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       requestsUsed,
       exceedsQuota: exceedsQuotaValue === 'true',
       totalMonthlyQuota,
+      ...(aicQuantity !== undefined ? { aicQuantity } : {}),
+      ...(aicGrossAmount !== undefined ? { aicGrossAmount } : {}),
     };
   }).filter(Boolean) as CopilotUsageData[];
 }
@@ -1344,3 +1370,98 @@ export function getUserAnalysisData(data: CopilotUsageData[], username: string):
     lastActivityDate
   };
 }
+
+// ─── AIC (AI Credits) cost data ───────────────────────────────────────────────
+
+export type AICGroupBy = 'day' | 'week' | 'month';
+
+export interface AICDataPoint {
+  label: string;   // display label for the X-axis
+  period: string;  // sort key (YYYY-MM-DD for day, week-start date for week, YYYY-MM for month)
+  aicQuantity: number;
+  aicGrossAmount: number;
+}
+
+export interface AICDataStatus {
+  /** Whether ANY record has the aic_quantity field present (even if zero). */
+  hasQuantityField: boolean;
+  /** Whether ANY record has the aic_gross_amount field present (even if zero). */
+  hasAmountField: boolean;
+  /** Whether there is at least one non-zero aic_quantity value. */
+  hasQuantityData: boolean;
+  /** Whether there is at least one non-zero aic_gross_amount value. */
+  hasAmountData: boolean;
+}
+
+/**
+ * Returns information about whether AIC fields are present and have meaningful data.
+ */
+export function getAICDataStatus(data: CopilotUsageData[]): AICDataStatus {
+  let hasQuantityField = false;
+  let hasAmountField = false;
+  let hasQuantityData = false;
+  let hasAmountData = false;
+
+  for (const item of data) {
+    if (item.aicQuantity !== undefined) {
+      hasQuantityField = true;
+      if (item.aicQuantity > 0) hasQuantityData = true;
+    }
+    if (item.aicGrossAmount !== undefined) {
+      hasAmountField = true;
+      if (item.aicGrossAmount > 0) hasAmountData = true;
+    }
+    if (hasQuantityData && hasAmountData) break;
+  }
+
+  return { hasQuantityField, hasAmountField, hasQuantityData, hasAmountData };
+}
+
+/**
+ * Aggregates AIC quantity and gross amount by day, ISO week, or calendar month.
+ * UTC-based to be consistent with all other date handling in the app.
+ */
+export function getAICData(data: CopilotUsageData[], groupBy: AICGroupBy = 'day'): AICDataPoint[] {
+  if (!data.length) return [];
+
+  const grouped: Record<string, AICDataPoint> = {};
+
+  data.forEach(item => {
+    const dateStr = item.timestamp.toISOString().split('T')[0]; // YYYY-MM-DD (UTC)
+    let period: string;
+    let label: string;
+
+    if (groupBy === 'day') {
+      period = dateStr;
+      label = dateStr;
+    } else if (groupBy === 'week') {
+      // Compute the Monday of the ISO week in UTC (matches WeeklyTopModelsChart)
+      const d = new Date(dateStr + 'T00:00:00Z');
+      const day = d.getUTCDay(); // 0 = Sunday
+      const diffToMon = day === 0 ? -6 : 1 - day;
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() + diffToMon);
+      period = mon.toISOString().split('T')[0];
+      label = mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    } else {
+      // Month: YYYY-MM
+      period = dateStr.slice(0, 7);
+      const d = new Date(dateStr + 'T00:00:00Z');
+      label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
+    }
+
+    if (!grouped[period]) {
+      grouped[period] = { label, period, aicQuantity: 0, aicGrossAmount: 0 };
+    }
+
+    if (item.aicQuantity !== undefined) {
+      grouped[period].aicQuantity += item.aicQuantity;
+    }
+    if (item.aicGrossAmount !== undefined) {
+      grouped[period].aicGrossAmount += item.aicGrossAmount;
+    }
+  });
+
+  return Object.values(grouped).sort((a, b) => a.period.localeCompare(b.period));
+}
+
