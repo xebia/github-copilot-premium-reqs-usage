@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
 import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
-import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -354,11 +354,13 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
 
 type BehaviorScatterChartProps = {
   behaviorData: BehaviorScatterPoint[];
+  displayUser: (name: string) => string;
 };
 
 // Isolated the graph due to latency issues. Allows toggling segments without reprocessing data or re-rendering other graphs.
 const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
   behaviorData,
+  displayUser,
 }: BehaviorScatterChartProps) {
   const [hiddenBehaviorSegments, setHiddenBehaviorSegments] = useState<Set<string>>(new Set());
 
@@ -448,7 +450,7 @@ const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
                   const point = payload[0].payload as BehaviorScatterPoint;
                   return (
                     <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
-                      <div className="font-medium mb-2">{point.user}</div>
+                      <div className="font-medium mb-2">{displayUser(point.user)}</div>
                       <div className="space-y-1">
                         <div>Segment: <span className="font-medium">{point.behaviorSegment}</span></div>
                         <div>Utilization: <span className="font-medium">{point.utilizationPct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
@@ -515,7 +517,25 @@ function App() {
   const [modelSortColumn, setModelSortColumn] = useState<keyof ModelUsageSummary | null>(null);
   const [modelSortDirection, setModelSortDirection] = useState<'asc' | 'desc'>('desc');
   const [totalLicensedUsers, setTotalLicensedUsers] = useState<number | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Anonymized user map: maps real user names to anonymous "User000N" labels, stable across month selections
+  const userAnonMap = useMemo<Map<string, string>>(() => {
+    if (!rawData) return new Map();
+    const uniqueUsers = Array.from(new Set(rawData.map(item => item.user))).sort();
+    const padLength = String(uniqueUsers.length).length;
+    const map = new Map<string, string>();
+    uniqueUsers.forEach((user, index) => {
+      map.set(user, `User${String(index + 1).padStart(padLength, '0')}`);
+    });
+    return map;
+  }, [rawData]);
+
+  const displayUser = useCallback((name: string): string => {
+    if (!demoMode) return name;
+    return userAnonMap.get(name) ?? name;
+  }, [demoMode, userAnonMap]);
   
   // Recalculate users exceeding quota when plan selection changes
   useEffect(() => {
@@ -725,6 +745,7 @@ function App() {
     setUsersExceedingQuota(0);
     setLastDateAvailable(null);
     setDailyOveruserData([]);
+    setDemoMode(false);
   }, []);
 
   const processFiles = useCallback((files: File[]) => {
@@ -793,6 +814,7 @@ function App() {
         }
 
         setIsProcessing(false);
+        setDemoMode(true);
         const label = files.length > 1
           ? `${files.length} files (${allData.length.toLocaleString()} records)`
           : `${allData.length.toLocaleString()} records`;
@@ -1244,7 +1266,7 @@ function App() {
                   Usage Statistics
                   {selectedSearchUser && (
                     <span className="ml-2 text-lg font-medium text-blue-600">
-                      - {selectedSearchUser}
+                      - {displayUser(selectedSearchUser)}
                     </span>
                   )}
                 </h2>
@@ -1273,7 +1295,7 @@ function App() {
                   <h2 className="text-2xl font-semibold mb-2">User Analysis</h2>
                   <p className="text-muted-foreground">
                     {selectedSearchUser 
-                      ? `Currently viewing data for ${selectedSearchUser}. All panels are filtered to show only this user's activity.`
+                      ? `Currently viewing data for ${displayUser(selectedSearchUser)}. All panels are filtered to show only this user's activity.`
                       : "Search for a specific user to view their detailed usage statistics"
                     }
                   </p>
@@ -1294,6 +1316,7 @@ function App() {
                   selectedUser={selectedSearchUser}
                   onUserChange={handleSearchUserSelect}
                   disabled={isProcessing}
+                  displayUser={displayUser}
                 />
               </div>
               
@@ -1301,7 +1324,7 @@ function App() {
                 <Card>
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Analysis for {userAnalysisData.user}</h3>
+                      <h3 className="text-lg font-semibold">Analysis for {displayUser(userAnalysisData.user)}</h3>
                     </div>
                     
                     {/* User Statistics Summary */}
@@ -1612,7 +1635,7 @@ function App() {
                                   Power User Requests Breakdown (By Model & Compliance)
                                   {selectedPowerUser && (
                                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                                      - {selectedPowerUser}
+                                      - {displayUser(selectedPowerUser)}
                                     </span>
                                   )}
                                   {selectedPowerUser && (
@@ -1804,7 +1827,7 @@ function App() {
                                             title="Click to view user's request details"
                                           >
                                             <span className={`font-medium transition-colors hover:underline ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-foreground group-hover:text-blue-600'}`}>
-                                              {user.user}
+                                              {displayUser(user.user)}
                                             </span>
                                             <UserSquare className={`h-3 w-3 transition-all duration-200 group-hover:scale-110 opacity-60 group-hover:opacity-100 ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-blue-500'}`} />
                                           </div>
@@ -1823,6 +1846,16 @@ function App() {
                             </SheetContent>
                         </Sheet>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDemoMode(prev => !prev)}
+                      className="flex items-center gap-2 ml-auto"
+                      title={demoMode ? "Show actual user names from the dataset" : "Hide user names and replace with anonymous labels"}
+                    >
+                      {demoMode ? <Eye size={14} /> : <EyeOff size={14} />}
+                      {demoMode ? "Show Actual User Names" : "Enable Demo Mode"}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -1836,7 +1869,7 @@ function App() {
                     Requests per Model
                     {selectedSearchUser && (
                       <span className="ml-2 text-sm font-normal text-blue-600">
-                        - {selectedSearchUser}
+                        - {displayUser(selectedSearchUser)}
                       </span>
                     )}
                   </h3>
@@ -1965,7 +1998,7 @@ function App() {
                 Daily Usage Overview
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2061,7 +2094,7 @@ function App() {
                     % Users with Overage Costs (Cumulative)
                     {selectedSearchUser && (
                       <span className="ml-2 text-lg font-medium text-blue-600">
-                        - {selectedSearchUser}
+                        - {displayUser(selectedSearchUser)}
                       </span>
                     )}
                   </h2>
@@ -2131,7 +2164,7 @@ function App() {
                 Requests per Model per Day (All Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2209,7 +2242,7 @@ function App() {
                 Requests per Model per Day (Top 5 Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2287,7 +2320,7 @@ function App() {
                 Top 5 Models per Week
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2306,7 +2339,7 @@ function App() {
                 User Behavior Segments
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
-                    - {selectedSearchUser}
+                    - {displayUser(selectedSearchUser)}
                   </span>
                 )}
               </h2>
@@ -2315,7 +2348,7 @@ function App() {
               </div>
             </div>
             <Separator className="mb-6" />
-            <BehaviorScatterChart behaviorData={behaviorData} />
+            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} />
           </div>
         </div>
       )}
@@ -2376,7 +2409,7 @@ function App() {
                       <TableBody>
                         {exceededUsersOverviewData.map((row) => (
                           <TableRow key={row.user}>
-                            <TableCell className="font-medium">{row.user}</TableCell>
+                            <TableCell className="font-medium">{displayUser(row.user)}</TableCell>
                             <TableCell className="text-right">{row.daysExceeded.toLocaleString()}</TableCell>
                             <TableCell className="text-right text-red-600 font-medium">
                               {row.totalExceededRequests.toLocaleString()}
@@ -2415,7 +2448,7 @@ function App() {
           <DialogHeader>
             <DialogTitle>
               Exceeded Request Details
-              {selectedPowerUser && ` - ${selectedPowerUser}`}
+              {selectedPowerUser && ` - ${displayUser(selectedPowerUser)}`}
             </DialogTitle>
           </DialogHeader>
           
@@ -2734,7 +2767,7 @@ function App() {
                               <TableCell className="text-center text-muted-foreground font-medium text-xs">
                                 {index + 1}
                               </TableCell>
-                              <TableCell className="font-medium text-sm" title={user.user}>{user.user}</TableCell>
+                              <TableCell className="font-medium text-sm" title={user.user}>{displayUser(user.user)}</TableCell>
                               <TableCell className="text-right text-sm">
                                 {user.currentRequests.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
                               </TableCell>
