@@ -137,7 +137,7 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
                       const val = Number(entry.value);
                       const formatted = isAmount
                         ? `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-                        : val.toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 0 });
+                        : val.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 });
                       return (
                         <div key={String(entry.dataKey)} className="flex justify-between items-center gap-4">
                           <div className="flex items-center gap-1.5">

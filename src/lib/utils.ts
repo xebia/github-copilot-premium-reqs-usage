@@ -8,6 +8,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Format a request count value with up to 8 decimal places (no trailing zeros).
+ * Handles high-precision values like 107.03398500000002 correctly.
+ */
+export function formatRequestCount(value: number): string {
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 8,
+    minimumFractionDigits: 0,
+  });
+}
+
 export interface CopilotUsageData {
   timestamp: Date;
   user: string;
