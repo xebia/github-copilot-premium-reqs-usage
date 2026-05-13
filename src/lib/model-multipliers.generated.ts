@@ -5,7 +5,7 @@
 //
 // To make manual changes, edit `model-multipliers.legacy.ts` instead.
 
-export const CURRENT_MODELS_SOURCE_RELEASE = 'models-2026-05-07-085601';
+export const CURRENT_MODELS_SOURCE_RELEASE = 'models-2026-05-12-085944';
 
 export const CURRENT_MODEL_MULTIPLIERS: Record<string, number> = {
   'Claude Haiku 4.5': 0.33,
