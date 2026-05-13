@@ -2121,8 +2121,8 @@ function App() {
                       <YAxis
                         tick={{ fill: 'var(--foreground)' }}
                         tickLine={{ stroke: 'var(--border)' }}
-                        tickFormatter={(v) => `${v.toFixed(0)}%`}
-                        domain={[0, 100]}
+                        tickFormatter={(v) => `${v.toFixed(1)}%`}
+                        domain={[0, Math.min(100, Math.ceil(Math.max(...dailyOveruserData.map(d => d.percentage)) * 1.1))]}
                       />
                       <Tooltip
                         content={({ active, payload, label }) => {
