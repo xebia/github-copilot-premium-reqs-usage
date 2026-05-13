@@ -322,13 +322,13 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
                             />
                             <span>{entry.name}:</span>
                           </div>
-                          <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</div>
+                          <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</div>
                         </div>
                       ))}
                       {filtered.length > 1 && (
                         <div className="border-t pt-1 mt-1 flex justify-between font-semibold">
                           <span>Total:</span>
-                          <span>{total.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span>
+                          <span>{total.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</span>
                         </div>
                       )}
                     </div>
@@ -459,7 +459,7 @@ const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
                         <div>Models Used: <span className="font-medium">{point.modelDiversity.toLocaleString()}</span></div>
                         <div>Top Model Share: <span className="font-medium">{point.topModelSharePct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
                         <div>First Week Usage: <span className="font-medium">{(point.frontloadIndex * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                        <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}</span></div>
+                        <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</span></div>
                       </div>
                     </div>
                   );
@@ -1431,7 +1431,7 @@ function App() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Total Requests:</span>
                       <span className="text-lg font-bold">
-                        {displayData.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                        {displayData.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1542,7 +1542,7 @@ function App() {
                                   <div className="flex justify-between items-center">
                                     <span className="text-sm text-muted-foreground">Total Requests:</span>
                                     <span className="font-bold">
-                                      {powerUserSummary.totalPowerUserRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                                      {powerUserSummary.totalPowerUserRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                                     </span>
                                   </div>
                                   <div className="flex justify-between items-center">
@@ -1566,7 +1566,7 @@ function App() {
                                       {powerUserSummary.powerUserModelSummary.map((item) => (
                                         <TableRow key={item.model}>
                                           <TableCell className="font-medium">{item.model}</TableCell>
-                                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
@@ -1605,7 +1605,7 @@ function App() {
                                               <div className="font-medium mb-2">{label}</div>
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                                                <span>Requests: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</span>
+                                                <span>Requests: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</span>
                                               </div>
                                             </div>
                                           );
@@ -1708,7 +1708,7 @@ function App() {
                                         
                                         const formatNumber = (value) => 
                                           Number(value).toLocaleString(undefined, {
-                                            maximumFractionDigits: 2, 
+                                            maximumFractionDigits: 8, 
                                             minimumFractionDigits: 0
                                           });
 
@@ -1833,8 +1833,8 @@ function App() {
                                             <UserSquare className={`h-3 w-3 transition-all duration-200 group-hover:scale-110 opacity-60 group-hover:opacity-100 ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-blue-500'}`} />
                                           </div>
                                         </TableCell>
-                                        <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
-                                        <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                                        <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                                        <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
                                         <TableCell className="text-right">{Object.keys(user.requestsByModel).length}</TableCell>
                                       </TableRow>
                                     ))}
@@ -1963,9 +1963,9 @@ function App() {
                       {sortedModelSummary.map((item) => (
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
-                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
-                          <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
-                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.multiplier}x</TableCell>
                         </TableRow>
                       ))}
@@ -1974,13 +1974,13 @@ function App() {
                       <TableRow className="bg-accent/20">
                         <TableCell className="font-medium">Total</TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                          {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                          {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                          {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </TableCell>
                         <TableCell className="text-right">—</TableCell>
                       </TableRow>
@@ -2046,14 +2046,14 @@ function App() {
                                   <div className="w-2 h-2 rounded-full bg-[#10b981]" />
                                   <span>Compliant:</span>
                                 </div>
-                                <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
                                 <div className="flex items-center gap-1.5">
                                   <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
                                   <span>Exceeding:</span>
                                 </div>
-                                <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
                                 <div className="font-medium">Total:</div>
-                                <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
                               </div>
                             </div>
                           </div>
@@ -2121,8 +2121,8 @@ function App() {
                       <YAxis
                         tick={{ fill: 'var(--foreground)' }}
                         tickLine={{ stroke: 'var(--border)' }}
-                        tickFormatter={(v) => `${v.toFixed(0)}%`}
-                        domain={[0, 100]}
+                        tickFormatter={(v) => `${v.toFixed(1)}%`}
+                        domain={[0, Math.min(100, Math.ceil(Math.max(...dailyOveruserData.map(d => d.percentage)) * 1.1))]}
                       />
                       <Tooltip
                         content={({ active, payload, label }) => {
@@ -2231,7 +2231,7 @@ function App() {
                                     />
                                     <span>{entry.name}:</span>
                                   </div>
-                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
                                 </div>
                               ))}
                             </div>
@@ -2309,7 +2309,7 @@ function App() {
                                     />
                                     <span>{entry.name}:</span>
                                   </div>
-                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}</div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
                                 </div>
                               ))}
                             </div>
@@ -2596,7 +2596,7 @@ function App() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Total Requests:</span>
                         <span className="font-bold">
-                          {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                          {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -2666,7 +2666,7 @@ function App() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Exceeding Requests:</span>
                         <span className="font-bold text-red-600">
-                          {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 0})}
+                          {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">

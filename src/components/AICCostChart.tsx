@@ -76,55 +76,54 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
         ))}
       </div>
 
-      <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart data={chartData} margin={{ top: 8, right: 60, left: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-          <XAxis
-            dataKey="label"
-            tick={{ fill: "var(--foreground)", fontSize: 12 }}
-            tickLine={{ stroke: "var(--border)" }}
-          />
+      <div className="flex items-stretch">
+        {/* Left axis label */}
+        {status.hasQuantityField && (
+          <div className="flex items-center justify-center w-5 flex-shrink-0">
+            <span
+              className="text-xs text-foreground whitespace-nowrap"
+              style={{ transform: "rotate(-90deg)", display: "block" }}
+            >
+              AI Credits
+            </span>
+          </div>
+        )}
 
-          {/* Left axis: AI credits quantity */}
-          {status.hasQuantityField && (
-            <YAxis
-              yAxisId="left"
-              orientation="left"
-              tick={{ fill: "var(--foreground)" }}
+        <ResponsiveContainer width="100%" height={400}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "var(--foreground)", fontSize: 12 }}
               tickLine={{ stroke: "var(--border)" }}
-              tickFormatter={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-              label={{
-                value: "AI Credits",
-                angle: -90,
-                position: "insideLeft",
-                style: { fill: "var(--foreground)", fontSize: 12 },
-                offset: 8,
-              }}
             />
-          )}
 
-          {/* Right axis: estimated cost (USD) */}
-          {status.hasAmountField && (
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fill: "var(--foreground)" }}
-              tickLine={{ stroke: "var(--border)" }}
-              tickFormatter={(v) =>
-                `$${v.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}`
-              }
-              label={{
-                value: "Est. Cost (USD)",
-                angle: 90,
-                position: "insideRight",
-                style: { fill: "var(--foreground)", fontSize: 12 },
-                offset: 16,
-              }}
-            />
-          )}
+            {/* Left axis: AI credits quantity */}
+            {status.hasQuantityField && (
+              <YAxis
+                yAxisId="left"
+                orientation="left"
+                tick={{ fill: "var(--foreground)" }}
+                tickLine={{ stroke: "var(--border)" }}
+                tickFormatter={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              />
+            )}
+
+            {/* Right axis: estimated cost (USD) */}
+            {status.hasAmountField && (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fill: "var(--foreground)" }}
+                tickLine={{ stroke: "var(--border)" }}
+                tickFormatter={(v) =>
+                  `$${v.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`
+                }
+              />
+            )}
 
           <Tooltip
             content={({ active, payload, label }) => {
@@ -138,7 +137,7 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
                       const val = Number(entry.value);
                       const formatted = isAmount
                         ? `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-                        : val.toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 0 });
+                        : val.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 });
                       return (
                         <div key={String(entry.dataKey)} className="flex justify-between items-center gap-4">
                           <div className="flex items-center gap-1.5">
@@ -185,7 +184,20 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
             />
           )}
         </ComposedChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+
+        {/* Right axis label */}
+        {status.hasAmountField && (
+          <div className="flex items-center justify-center w-5 flex-shrink-0">
+            <span
+              className="text-xs text-foreground whitespace-nowrap"
+              style={{ transform: "rotate(90deg)", display: "block" }}
+            >
+              Est. Cost (USD)
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 });
