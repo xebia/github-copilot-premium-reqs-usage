@@ -1256,32 +1256,33 @@ export function getUserBehaviorData(
 }
 
 /**
- * Get ISO week number for a given date
+ * Get ISO week number for a given date (UTC-based to avoid timezone-dependent results)
  */
 function getISOWeek(date: Date): { year: number; week: number } {
   const target = new Date(date.valueOf());
-  const dayNumber = (date.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNumber + 3);
+  const dayNumber = (date.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  target.setUTCDate(target.getUTCDate() - dayNumber + 3); // Move to Thursday of the week
   const firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  target.setUTCMonth(0, 1);
+  if (target.getUTCDay() !== 4) {
+    target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7); // Move to first Thursday of year
   }
   const week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
-  return { year: target.getFullYear(), week };
+  return { year: target.getUTCFullYear(), week };
 }
 
 /**
- * Get the start and end dates for an ISO week
+ * Get the start and end dates for an ISO week (UTC-based to avoid timezone-dependent results)
  */
 function getISOWeekDates(year: number, week: number): { startDate: Date; endDate: Date } {
-  const jan4 = new Date(year, 0, 4);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4IsoDay = jan4.getUTCDay() || 7; // ISO weekday: Mon=1 … Sun=7
   const startOfWeek = new Date(jan4);
-  startOfWeek.setDate(jan4.getDate() - jan4.getDay() + 1 + (week - 1) * 7);
-  
+  startOfWeek.setUTCDate(jan4.getUTCDate() - jan4IsoDay + 1 + (week - 1) * 7);
+
   const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  
+  endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
+
   return { startDate: startOfWeek, endDate: endOfWeek };
 }
 
