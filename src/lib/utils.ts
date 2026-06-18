@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { defaultServerMainFields } from "vite";
-import { CURRENT_MODEL_MULTIPLIERS, CURRENT_DEFAULT_MODELS } from "./model-multipliers.generated";
-import { LEGACY_MODEL_MULTIPLIERS, LEGACY_DEFAULT_MODELS } from "./model-multipliers.legacy";
+import { CURRENT_MODEL_MULTIPLIERS_PAID, CURRENT_MODEL_MULTIPLIERS_FREE, CURRENT_DEFAULT_MODELS } from "./model-multipliers.generated";
+import { LEGACY_MODEL_MULTIPLIERS_PAID, LEGACY_MODEL_MULTIPLIERS_FREE, LEGACY_DEFAULT_MODELS } from "./model-multipliers.legacy";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -425,22 +425,29 @@ export const PLAN_MONTHLY_LIMITS = {
   [COPILOT_PLANS.ENTERPRISE]: 1000
 } as const;
 
-// Model premium-request indicators. With usage-based billing, multipliers no
-// longer apply — all premium requests count as 1 PRU each. A value of 0 means
-// the model is included in the subscription (free/default); 1 means it
-// consumes premium requests.
+// Model premium-request indicators. Values: -1 = not available on this plan;
+// 0 = included in subscription (free); >0 = costs premium requests.
 //
-// The current models are sourced from rajbos/github-copilot-model-notifier and
-// refreshed daily by `scripts/update-model-multipliers.py`. Legacy entries
-// (older lowercase / dated names) are kept for backward compatibility with
-// historical CSV exports. Edit those in `model-multipliers.legacy.ts`.
+// The current models are sourced from rajbos/github-copilot-model-notifier
+// (data/models.json) and refreshed daily by `scripts/update-model-multipliers.py`.
+// Legacy entries (older lowercase / dated names) are kept for backward
+// compatibility with historical CSV exports. Edit those in
+// `model-multipliers.legacy.ts`.
 //
 // Legacy entries are spread first so that, in case of a name collision, the
 // current generated value wins.
-export const MODEL_MULTIPLIERS: Record<string, number> = {
-  ...LEGACY_MODEL_MULTIPLIERS,
-  ...CURRENT_MODEL_MULTIPLIERS,
+export const MODEL_MULTIPLIERS_PAID: Record<string, number> = {
+  ...LEGACY_MODEL_MULTIPLIERS_PAID,
+  ...CURRENT_MODEL_MULTIPLIERS_PAID,
 };
+
+export const MODEL_MULTIPLIERS_FREE: Record<string, number> = {
+  ...LEGACY_MODEL_MULTIPLIERS_FREE,
+  ...CURRENT_MODEL_MULTIPLIERS_FREE,
+};
+
+// Backward-compat alias — defaults to paid-plan multipliers.
+export const MODEL_MULTIPLIERS: Record<string, number> = MODEL_MULTIPLIERS_PAID;
 
 // Default models that should be grouped under "Default" in the UI.
 export const DEFAULT_MODELS: string[] = [
@@ -452,8 +459,15 @@ function normalizeModelName(model: string): string {
   return model.replace(/^Auto:\s*/, '').trim();
 }
 
-function getModelMultiplier(model: string): number {
-  return MODEL_MULTIPLIERS[normalizeModelName(model)] ?? 1;
+/**
+ * Returns the request multiplier for a model.
+ * -1 (not available on this plan) is treated as 0 for calculations (no cost
+ * assigned to models that can't be used on the given plan).
+ */
+export function getModelMultiplier(model: string, plan: 'paid' | 'free' = 'paid'): number {
+  const table = plan === 'free' ? MODEL_MULTIPLIERS_FREE : MODEL_MULTIPLIERS_PAID;
+  const value = table[normalizeModelName(model)] ?? 1;
+  return value < 0 ? 0 : value; // -1 (not available) → treat as 0 for cost math
 }
 
 function isDefaultModel(model: string): boolean {
