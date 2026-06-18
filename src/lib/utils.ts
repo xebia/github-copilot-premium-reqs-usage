@@ -425,8 +425,10 @@ export const PLAN_MONTHLY_LIMITS = {
   [COPILOT_PLANS.ENTERPRISE]: 1000
 } as const;
 
-// Model multipliers based on GitHub documentation (for paid plans).
-// Uses display names as they appear in GitHub Copilot exports.
+// Model premium-request indicators. With usage-based billing, multipliers no
+// longer apply — all premium requests count as 1 PRU each. A value of 0 means
+// the model is included in the subscription (free/default); 1 means it
+// consumes premium requests.
 //
 // The current models are sourced from rajbos/github-copilot-model-notifier and
 // refreshed daily by `scripts/update-model-multipliers.py`. Legacy entries
@@ -934,7 +936,7 @@ export function getProjectedUsersExceedingQuotaDetails(data: CopilotUsageData[],
  * 1. Find the day their cumulative requests hit the limit (budget exhaustion day).
  * 2. Compute daily average requests per model, excluding the last usage day (to avoid partial-day skew).
  * 3. Project those requests over the remaining days after the exhaustion day.
- * 4. Apply each model's cost multiplier and sum the cost at $0.04/PRU.
+ * 4. Sum the cost at $0.04/PRU (free/default models excluded).
  */
 export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = COPILOT_PLANS.BUSINESS): number {
   if (!data.length) return 0;
@@ -1004,15 +1006,14 @@ export function getExpectedExcessCost(data: CopilotUsageData[], plan: string = C
       const projectedExcess = projectedMonthlyTotal - planLimit;
       if (projectedExcess <= 0 || projectedMonthlyTotal <= 0) return;
 
-      // Allocate only the projected amount above the free plan quota across models,
-      // then apply each model multiplier to compute cost.
+      // Allocate only the projected amount above the free plan quota across models.
       Object.entries(projectedModelTotals).forEach(([model, projectedTotalForModel]) => {
         const multiplier = getModelMultiplier(model);
         if (multiplier === 0) return;
 
         const modelShare = projectedTotalForModel / projectedMonthlyTotal;
         const projectedExcessForModel = projectedExcess * modelShare;
-        totalExpectedCost += projectedExcessForModel * multiplier * EXCESS_REQUEST_COST;
+        totalExpectedCost += projectedExcessForModel * EXCESS_REQUEST_COST;
       });
     });
 

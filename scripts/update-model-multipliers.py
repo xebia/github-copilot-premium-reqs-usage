@@ -92,6 +92,12 @@ def parse_models_table(body: str) -> dict[str, float]:
         raw_mult = cells[2]
         if raw_mult.lower() == "not applicable":
             mult: float = 0.0
+        elif raw_mult == "":
+            # Multiplier data not available in source; default to 1 premium request.
+            sys.stderr.write(
+                f"Warning: {name!r} has no multiplier in source - defaulting to 1\n"
+            )
+            mult = 1.0
         else:
             try:
                 mult = float(raw_mult)

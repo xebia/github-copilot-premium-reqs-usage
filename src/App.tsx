@@ -1509,7 +1509,7 @@ function App() {
                     </div>
                     <div
                       className="flex items-center gap-2"
-                      title="Projected total cost if the monthly quota limit did not exist, based on each user's usage rate and model cost multipliers"
+                      title="Projected total cost if the monthly quota limit did not exist, based on each user's usage rate ($0.04 per premium request)"
                     >
                       <span className="text-sm text-muted-foreground">Expected Cost (no limit):</span>
                       <span className="text-lg font-bold text-orange-600">
@@ -1944,19 +1944,6 @@ function App() {
                             )}
                           </button>
                         </TableHead>
-                        <TableHead className="text-right">
-                          <button
-                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
-                            onClick={() => handleModelSort('multiplier')}
-                          >
-                            Multiplier
-                            {modelSortColumn === 'multiplier' ? (
-                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                            ) : (
-                              <ArrowUpDown className="h-3 w-3 opacity-40" />
-                            )}
-                          </button>
-                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1966,7 +1953,6 @@ function App() {
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
-                          <TableCell className="text-right">{item.multiplier}x</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1982,7 +1968,6 @@ function App() {
                         <TableCell className="text-right font-medium">
                           {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
                         </TableCell>
-                        <TableCell className="text-right">—</TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table>
