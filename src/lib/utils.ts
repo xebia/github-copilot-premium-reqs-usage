@@ -244,6 +244,8 @@ export interface ModelUsageSummary {
   totalRequests: number;
   compliantRequests: number;
   exceedingRequests: number;
+  aicQuantity: number;
+  netAmount: number;
   multiplier: number;
   individualPlanLimit: number;
   businessPlanLimit: number;
@@ -301,6 +303,8 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
         totalRequests: 0,
         compliantRequests: 0,
         exceedingRequests: 0,
+        aicQuantity: 0,
+        netAmount: 0,
         multiplier,
         individualPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL],
         businessPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS],
@@ -310,6 +314,12 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
     
     summary[item.model].totalRequests += item.requestsUsed;
+    if (item.aicQuantity !== undefined) {
+      summary[item.model].aicQuantity += item.aicQuantity;
+    }
+    if (item.netAmount !== undefined) {
+      summary[item.model].netAmount += item.netAmount;
+    }
     
     if (item.exceedsQuota) {
       summary[item.model].exceedingRequests += item.requestsUsed;
@@ -335,6 +345,8 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
       groupedSummary[key].totalRequests += item.totalRequests;
       groupedSummary[key].compliantRequests += item.compliantRequests;
       groupedSummary[key].exceedingRequests += item.exceedingRequests;
+      groupedSummary[key].aicQuantity += item.aicQuantity;
+      groupedSummary[key].netAmount += item.netAmount;
     }
     
     // For grouped default models, ensure multiplier is 0 and limits use constant values

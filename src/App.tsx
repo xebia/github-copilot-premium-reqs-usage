@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
@@ -1886,19 +1886,6 @@ function App() {
                       </span>
                     )}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Plan Type:</span>
-                    <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Select plan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={COPILOT_PLANS.INDIVIDUAL}>Individual</SelectItem>
-                        <SelectItem value={COPILOT_PLANS.BUSINESS}>Business</SelectItem>
-                        <SelectItem value={COPILOT_PLANS.ENTERPRISE}>Enterprise</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 <div className="overflow-auto max-h-60">
                   <Table>
@@ -1930,6 +1917,7 @@ function App() {
                             )}
                           </button>
                         </TableHead>
+                        {!isNewFormat ? (<>
                         <TableHead className="text-right">
                           <button
                             className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
@@ -1956,6 +1944,34 @@ function App() {
                             )}
                           </button>
                         </TableHead>
+                        </>) : (<>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('aicQuantity')}
+                          >
+                            AIC Qty
+                            {modelSortColumn === 'aicQuantity' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('netAmount')}
+                          >
+                            Net Cost
+                            {modelSortColumn === 'netAmount' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        </>)}
                         {!isNewFormat && (
                         <TableHead className="text-right">
                           <button
@@ -1978,8 +1994,13 @@ function App() {
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
                           <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          {!isNewFormat ? (<>
                           <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
                           <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          </>) : (<>
+                          <TableCell className="text-right">{item.aicQuantity.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="text-right">${item.netAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                          </>)}
                           {!isNewFormat && (
                           <TableCell className="text-right">{item.multiplier}x</TableCell>
                           )}
@@ -1992,12 +2013,21 @@ function App() {
                         <TableCell className="text-right font-medium">
                           {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </TableCell>
+                        {!isNewFormat ? (<>
                         <TableCell className="text-right font-medium">
                           {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </TableCell>
+                        </>) : (<>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.aicQuantity, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${modelSummary.reduce((sum, item) => sum + item.netAmount, 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </TableCell>
+                        </>)}
                         {!isNewFormat && (
                         <TableCell className="text-right">—</TableCell>
                         )}
