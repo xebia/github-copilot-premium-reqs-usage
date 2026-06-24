@@ -358,12 +358,14 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
 type BehaviorScatterChartProps = {
   behaviorData: BehaviorScatterPoint[];
   displayUser: (name: string) => string;
+  unitLabel: string;
 };
 
 // Isolated the graph due to latency issues. Allows toggling segments without reprocessing data or re-rendering other graphs.
 const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
   behaviorData,
   displayUser,
+  unitLabel,
 }: BehaviorScatterChartProps) {
   const [hiddenBehaviorSegments, setHiddenBehaviorSegments] = useState<Set<string>>(new Set());
 
@@ -2422,7 +2424,7 @@ function App() {
               </div>
             </div>
             <Separator className="mb-6" />
-            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} />
+            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} unitLabel={unitLabel} />
           </div>
         </div>
       )}
