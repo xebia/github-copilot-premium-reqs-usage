@@ -505,6 +505,7 @@ function App() {
   const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
   const [isProcessing, setIsProcessing] = useState(false);
   const [visibleBars, setVisibleBars] = useState(['compliantRequests', 'exceedingRequests']);
+  const [hiddenPowerUserModelNames, setHiddenPowerUserModelNames] = useState<string[]>([]);
   const [showExceededDetails, setShowExceededDetails] = useState(false);
   const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -743,6 +744,12 @@ function App() {
     const breakdown = getFilteredPowerUserBreakdown();
     return getUniqueModelsFromBreakdown(breakdown);
   }, [getFilteredPowerUserBreakdown]);
+
+  // Get visible power user models (excluding hidden ones)
+  const getVisiblePowerUserModels = useCallback(() => {
+    const allModels = getPowerUserModels();
+    return allModels.filter(model => !hiddenPowerUserModelNames.includes(model));
+  }, [getPowerUserModels, hiddenPowerUserModelNames]);
 
   const resetDataState = useCallback(() => {
     setData(null);
@@ -1095,17 +1102,29 @@ function App() {
     return item.multiplier === 0 ? "Unlimited" : limit.toLocaleString();
   }, [selectedPlan]);
 
-  const handleLegendClick = (barKey) => {
+  const handleLegendClick = (barKey: string) => {
     if (barKey === 'all') {
       setVisibleBars(['compliantRequests', 'exceedingRequests']);
+      return;
+    }
+    
+    // Map the display names back to data keys
+    const dataKeyMap: Record<string, string> = {
+      'Compliant Requests': 'compliantRequests',
+      'Exceeding Requests': 'exceedingRequests'
+    };
+    const actualKey = dataKeyMap[barKey] || barKey;
+    
+    // Check if this is a compliance bar (compliantRequests/exceedingRequests)
+    if (actualKey === 'compliantRequests' || actualKey === 'exceedingRequests') {
+      setVisibleBars(prev => 
+        prev.includes(actualKey) ? prev.filter(k => k !== actualKey) : [...prev, actualKey]
+      );
     } else {
-      // Map the display names back to data keys
-      const dataKeyMap = {
-        'Compliant Requests': 'compliantRequests',
-        'Exceeding Requests': 'exceedingRequests'
-      };
-      const actualKey = dataKeyMap[barKey] || barKey;
-      setVisibleBars([actualKey]);
+      // This is a model name - toggle in hidden list
+      setHiddenPowerUserModelNames(prev => 
+        prev.includes(actualKey) ? prev.filter(m => m !== actualKey) : [...prev, actualKey]
+      );
     }
   };
 
@@ -1122,13 +1141,13 @@ function App() {
     setShowExceededDetails(true);
   };
 
-  const CustomLegend = ({ payload }) => {
+  const CustomLegend = ({ payload }: { payload: any[] }) => {
     // Define all possible bars
     const allPossibleBars = ['compliantRequests', 'exceedingRequests'];
-    const showAllOption = allPossibleBars.length > 1 && visibleBars.length === 1;
+    const showAllOption = allPossibleBars.length > 1 && visibleBars.length < 2;
     
     return (
-      <ul className="flex gap-4">
+      <ul className="flex flex-wrap gap-4">
         {/* Only show "All Requests" if there are multiple filter options and not all are currently visible */}
         {showAllOption && (
           <li
@@ -1139,16 +1158,23 @@ function App() {
             All Requests
           </li>
         )}
-        {payload.map((entry) => (
-          <li
-            key={entry.dataKey}
-            className="cursor-pointer flex items-center gap-2 text-gray-600 hover:text-black"
-            onClick={() => handleLegendClick(entry.dataKey)}
-          >
-            <span className="w-4 h-4" style={{ backgroundColor: entry.color }}></span>
-            {entry.value}
-          </li>
-        ))}
+        {payload.map((entry) => {
+          const isModel = entry.dataKey !== 'compliantRequests' && entry.dataKey !== 'exceedingRequests';
+          const isHidden = isModel && hiddenPowerUserModelNames.includes(entry.dataKey);
+          const isComplianceHidden = !isModel && !visibleBars.includes(entry.dataKey);
+          const dimmed = isHidden || isComplianceHidden;
+          
+          return (
+            <li
+              key={entry.dataKey}
+              className={`cursor-pointer flex items-center gap-2 transition-opacity hover:opacity-80 ${dimmed ? 'opacity-40' : ''}`}
+              onClick={() => handleLegendClick(entry.dataKey)}
+            >
+              <span className="w-4 h-4 flex-shrink-0" style={{ backgroundColor: entry.color }}></span>
+              <span className={dimmed ? 'line-through' : ''}>{entry.value}</span>
+            </li>
+          );
+        })}
       </ul>
     );
   };
@@ -1566,21 +1592,21 @@ function App() {
                                 </div>
                               </Card>
                               
-                              <Card className="p-4">
+                              <Card className="p-4 min-w-0">
                                 <h3 className="text-md font-medium mb-3">{unitLabel} per Model</h3>
-                                <div className="overflow-auto max-h-40">
-                                  <Table>
+                                <div className="overflow-x-auto max-h-40">
+                                  <Table className="w-full">
                     <TableHeader className="sticky top-0 z-10 bg-background">
                                       <TableRow>
-                                        <TableHead>Model</TableHead>
-                                        <TableHead className="text-right">{unitLabel}</TableHead>
+                                        <TableHead className="whitespace-nowrap">Model</TableHead>
+                                        <TableHead className="text-right whitespace-nowrap">{unitLabel}</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                       {powerUserSummary.powerUserModelSummary.map((item) => (
                                         <TableRow key={item.model}>
-                                          <TableCell className="font-medium">{item.model}</TableCell>
-                                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                                          <TableCell className="font-medium max-w-[200px] truncate" title={item.model}>{item.model}</TableCell>
+                                          <TableCell className="text-right whitespace-nowrap">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
@@ -1592,12 +1618,12 @@ function App() {
                             {/* Power User Activity Chart */}
                             <Card className="p-4">
                               <h3 className="text-md font-medium mb-3">Power User Activity Over Time</h3>
-                              <div className="h-[300px]">
+                              <div className="h-[300px] overflow-hidden">
                                 <ChartContainer 
                                   config={{
                                     requests: { color: "#3b82f6" },
                                   }}
-                                  className="h-full w-full"
+                                  className="h-full w-full min-w-0"
                                 >
                                   <LineChart data={getPowerUserDailyData(powerUserSummary.powerUsers)}>
                                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -1669,10 +1695,10 @@ function App() {
                                   </Button>
                                 )}
                               </div>
-                              <div className="h-[300px]">
+                              <div className="h-[300px] overflow-hidden">
                                 <ChartContainer 
                                   config={(() => {
-                                    const models = getPowerUserModels();
+                                    const models = getVisiblePowerUserModels();
                                     const modelColors = getModelColors();
                                     const config: Record<string, { color: string }> = {
                                       compliantRequests: { color: "#10b981" }, // green
@@ -1680,137 +1706,137 @@ function App() {
                                     };
                                     
                                     // Add each model with its color
-                                    models.forEach((model, index) => {
+                                    models.forEach((model) => {
                                       config[model] = { color: modelColors[model] || "#94a3b8" };
                                     });
                                     
                                     return config;
                                   })()}
-                                  className="h-full w-full"
+                                  className="h-full w-full min-w-0"
                                 >
-                                  <BarChart data={getFilteredPowerUserBreakdown()}>
-                                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                    <XAxis 
-                                      dataKey="date" 
-                                      tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }}
-                                      domain={['dataMin', lastDateAvailable || 'dataMax']}
-                                    />
-                                    <YAxis 
-                                      tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }} 
-                                    />
-                                    <ChartTooltip
-                                      content={({ active, payload, label }) => {
-                                        if (!active || !payload?.length) return null;
-                                        
-                                        // Filter to only show data for visible bars
-                                        const visibleData = payload.filter(p => visibleBars.includes(p.dataKey));
-                                        if (!visibleData.length) return null;
-                                        
-                                        // Configuration for tooltip items
-                                        const tooltipConfig = {
-                                          compliantRequests: { 
-                                            label: 'Compliant', 
-                                            color: 'bg-[#10b981]' 
-                                          },
-                                          exceedingRequests: { 
-                                            label: 'Exceeding', 
-                                            color: 'bg-[#ef4444]' 
-                                          }
-                                        };
-                                        
-                                        const formatNumber = (value) => 
-                                          Number(value).toLocaleString(undefined, {
-                                            maximumFractionDigits: 2, 
-                                            minimumFractionDigits: 2
-                                          });
-
-                                        // Single filter view - show only the filtered data
-                                        if (visibleData.length === 1) {
-                                          const item = visibleData[0];
-                                          const config = tooltipConfig[item.dataKey];
+                                  {getVisiblePowerUserModels().length > 0 || visibleBars.length > 0 ? (
+                                    <BarChart data={getFilteredPowerUserBreakdown()}>
+                                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                      <XAxis 
+                                        dataKey="date" 
+                                        tick={{ fill: 'var(--foreground)' }}
+                                        tickLine={{ stroke: 'var(--border)' }}
+                                        domain={['dataMin', lastDateAvailable || 'dataMax']}
+                                      />
+                                      <YAxis 
+                                        tick={{ fill: 'var(--foreground)' }}
+                                        tickLine={{ stroke: 'var(--border)' }} 
+                                      />
+                                      <ChartTooltip
+                                        content={({ active, payload, label }) => {
+                                          if (!active || !payload?.length) return null;
                                           
+                                          // Filter to only show data for visible bars
+                                          const allVisibleKeys = [...visibleBars, ...getVisiblePowerUserModels()];
+                                          const visibleData = payload.filter(p => allVisibleKeys.includes(p.dataKey));
+                                          if (!visibleData.length) return null;
+                                          
+                                          const formatNumber = (value) => 
+                                            Number(value).toLocaleString(undefined, {
+                                              maximumFractionDigits: 2, 
+                                              minimumFractionDigits: 2
+                                            });
+
+                                          // Single item view
+                                          if (visibleData.length === 1) {
+                                            const item = visibleData[0];
+                                            const modelColors = getModelColors();
+                                            const bgColor = item.dataKey === 'compliantRequests' ? '#10b981' 
+                                              : item.dataKey === 'exceedingRequests' ? '#ef4444' 
+                                              : modelColors[item.dataKey] || '#94a3b8';
+                                            const displayName = item.dataKey === 'compliantRequests' ? 'Compliant'
+                                              : item.dataKey === 'exceedingRequests' ? 'Exceeding'
+                                              : item.dataKey;
+                                            
+                                            return (
+                                              <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                                <div className="font-medium mb-2">{label}</div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: bgColor }} />
+                                                  <span>{displayName}: {formatNumber(item.value)}</span>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+
+                                          // Multi-item view
+                                          const modelColors = getModelColors();
+                                          const total = visibleData.reduce((sum: number, item: any) => sum + Number(item.value), 0);
+
                                           return (
                                             <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                                               <div className="font-medium mb-2">{label}</div>
-                                              <div className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${config.color}`} />
-                                                <span>{config.label}: {formatNumber(item.value)}</span>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                {visibleData.map(item => {
+                                                  const bgColor = item.dataKey === 'compliantRequests' ? '#10b981' 
+                                                    : item.dataKey === 'exceedingRequests' ? '#ef4444' 
+                                                    : modelColors[item.dataKey] || '#94a3b8';
+                                                  const displayName = item.dataKey === 'compliantRequests' ? 'Compliant'
+                                                    : item.dataKey === 'exceedingRequests' ? 'Exceeding'
+                                                    : item.dataKey;
+                                                  return (
+                                                    <React.Fragment key={item.dataKey}>
+                                                      <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: bgColor }} />
+                                                        <span>{displayName}:</span>
+                                                      </div>
+                                                      <div className="text-right">{formatNumber(item.value)}</div>
+                                                    </React.Fragment>
+                                                  );
+                                                })}
+                                                <div className="font-medium">Total:</div>
+                                                <div className="text-right font-medium">{formatNumber(total)}</div>
                                               </div>
                                             </div>
                                           );
-                                        }
-
-                                        // Multi-filter view - show detailed breakdown
-                                        const values = visibleData.reduce((acc, item) => {
-                                          acc[item.dataKey] = Number(item.value);
-                                          return acc;
-                                        }, {} as Record<string, number>);
-                                        
-                                        const total = Object.values(values).reduce((sum: number, val: number) => sum + val, 0);
-
+                                        }}
+                                      />
+                                      <Legend content={(props) => <CustomLegend payload={props.payload} />} />
+                                      
+                                      {/* Dynamic stacked bars for each model */}
+                                      {getVisiblePowerUserModels().map((model) => {
+                                        const modelColors = getModelColors();
                                         return (
-                                          <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
-                                            <div className="font-medium mb-2">{label}</div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                              {visibleData.map(item => {
-                                                const config = tooltipConfig[item.dataKey];
-                                                return (
-                                                  <React.Fragment key={item.dataKey}>
-                                                    <div className="flex items-center gap-1.5">
-                                                      <div className={`w-2 h-2 rounded-full ${config.color}`} />
-                                                      <span>{config.label}:</span>
-                                                    </div>
-                                                    <div className="text-right">{formatNumber(item.value)}</div>
-                                                  </React.Fragment>
-                                                );
-                                              })}
-                                              <div className="font-medium">Total:</div>
-                                              <div className="text-right font-medium">{formatNumber(total)}</div>
-                                            </div>
-                                          </div>
+                                          <Bar
+                                            key={model}
+                                            dataKey={model}
+                                            name={model}
+                                            stackId="models"
+                                            fill={modelColors[model] || "#94a3b8"}
+                                          />
                                         );
-                                      }}
-                                    />
-                                    <Legend content={(props) => <CustomLegend payload={props.payload} />} />
-                                    
-                                    {/* Dynamic stacked bars for each model */}
-                                    {getPowerUserModels().map((model) => {
-                                      const modelColors = getModelColors();
-                                      return (
+                                      })}
+                                      
+                                      {/* Keep the original compliant/exceeding bars but make them toggleable */}
+                                      {visibleBars.includes('compliantRequests') && (
                                         <Bar
-                                          key={model}
-                                          dataKey={model}
-                                          name={model}
-                                          stackId="models"
-                                          fill={modelColors[model] || "#94a3b8"}
+                                          dataKey="compliantRequests"
+                                          name="Compliant Requests"
+                                          stackId="requests"
+                                          fill="#10b981"
                                         />
-                                      );
-                                    })}
-                                    
-                                    {/* Keep the original compliant/exceeding bars but make them toggleable */}
-                                    {visibleBars.includes('compliantRequests') && (
-                                      <Bar
-                                        dataKey="compliantRequests"
-                                        name="Compliant Requests"
-                                        stackId="requests"
-                                        fill="#10b981"
-                                        onMouseOver={(e) => console.log('Hovered Compliant', e)}
-                                      />
-                                    )}
-                                    {visibleBars.includes('exceedingRequests') && (
-                                      <Bar
-                                        dataKey="exceedingRequests"
-                                        name="Exceeding Requests"
-                                        stackId="requests"
-                                        fill="#ef4444"
-                                        onClick={handleExceedingBarClick}
-                                        style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
-                                        onMouseOver={(e) => console.log('Hovered Exceeding', e)}
-                                      />
-                                    )}
-                                  </BarChart>
+                                      )}
+                                      {visibleBars.includes('exceedingRequests') && (
+                                        <Bar
+                                          dataKey="exceedingRequests"
+                                          name="Exceeding Requests"
+                                          stackId="requests"
+                                          fill="#ef4444"
+                                          onClick={handleExceedingBarClick}
+                                          style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
+                                        />
+                                      )}
+                                    </BarChart>
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                                      No data to display. All models and request types are hidden.
+                                    </div>
+                                  )}
                                 </ChartContainer>
                               </div>
                             </Card>
