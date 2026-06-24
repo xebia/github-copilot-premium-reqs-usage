@@ -1825,7 +1825,7 @@ function App() {
                                       <TableHead className="w-12">#</TableHead>
                                       <TableHead>User</TableHead>
                                       <TableHead className="text-right">Total {unitLabel}</TableHead>
-                                      <TableHead className="text-right">Exceeding Requests</TableHead>
+                                      {!isNewFormat && (<TableHead className="text-right">Exceeding Requests</TableHead>)}
                                       <TableHead className="text-right">Models Used</TableHead>
                                     </TableRow>
                                   </TableHeader>
@@ -1848,7 +1848,7 @@ function App() {
                                           </div>
                                         </TableCell>
                                         <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
-                                        <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                                        {!isNewFormat && (<TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>)}
                                         <TableCell className="text-right">{Object.keys(user.requestsByModel).length}</TableCell>
                                       </TableRow>
                                     ))}
