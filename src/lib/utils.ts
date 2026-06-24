@@ -14,8 +14,8 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatRequestCount(value: number): string {
   return value.toLocaleString(undefined, {
-    maximumFractionDigits: 8,
-    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   });
 }
 
@@ -26,8 +26,19 @@ export interface CopilotUsageData {
   requestsUsed: number;
   exceedsQuota: boolean;
   totalMonthlyQuota: string;
-  aicQuantity?: number;     // aic_quantity: number of AI credits consumed
-  aicGrossAmount?: number;  // aic_gross_amount: estimated cost in USD under usage-based billing
+  aicQuantity?: number;
+  aicGrossAmount?: number;
+  // New fields from updated CSV format (Premium requests report)
+  product?: string;
+  sku?: string;
+  unitType?: string;
+  appliedCostPerQuantity?: number;
+  grossAmount?: number;
+  discountAmount?: number;
+  netAmount?: number;
+  organization?: string;
+  repository?: string;
+  costCenterName?: string;
 }
 
 export interface AggregatedData {
@@ -55,7 +66,7 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     return processed.trim();
   });
 
-  // Map new CSV field names to expected fields (case-insensitive)
+  // Map CSV field names to internal field names (case-insensitive)
   const FIELD_MAP: Record<string, string> = {
     'date': 'timestamp',
     'username': 'user',
@@ -65,6 +76,17 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     // AIC fields (optional)
     'aic_quantity': 'aicQuantity',
     'aic_gross_amount': 'aicGrossAmount',
+    // New fields from updated CSV format (Premium requests report)
+    'product': 'product',
+    'sku': 'sku',
+    'unit_type': 'unitType',
+    'applied_cost_per_quantity': 'appliedCostPerQuantity',
+    'gross_amount': 'grossAmount',
+    'discount_amount': 'discountAmount',
+    'net_amount': 'netAmount',
+    'organization': 'organization',
+    'repository': 'repository',
+    'cost_center_name': 'costCenterName',
     // Backward compatibility (old headers)
     'timestamp': 'timestamp',
     'user': 'user',
@@ -80,7 +102,6 @@ export function parseCSV(csv: string): CopilotUsageData[] {
     'user': 'User',
     'model': 'Model',
     'requestsUsed': 'Requests Used',
-    'exceedsQuota': 'Exceeds Monthly Quota',
     'totalMonthlyQuota': 'Total Monthly Quota',
   };
 
@@ -95,13 +116,13 @@ export function parseCSV(csv: string): CopilotUsageData[] {
 
   // Ensure all required fields are present
   const requiredFields: Array<keyof CopilotUsageData> = [
-    'timestamp', 'user', 'model', 'requestsUsed', 'exceedsQuota', 'totalMonthlyQuota'
+    'timestamp', 'user', 'model', 'requestsUsed', 'totalMonthlyQuota'
   ];
   const missingFields = requiredFields.filter(f => fieldToIndex[f] === undefined);
   if (missingFields.length > 0) {
     // If all columns are missing, check for too few columns
-    if (headers.length < 6) {
-      throw new Error('CSV header must contain at least 6 columns');
+    if (headers.length < 5) {
+      throw new Error('CSV header must contain at least 5 columns');
     }
     // Compose error message with original header names
     const missingHeaderNames = missingFields.map(f => INTERNAL_TO_HEADER[f]);
@@ -138,6 +159,15 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       return trimmed === '' ? undefined : trimmed;
     };
 
+    const getOptionalString = (field: keyof CopilotUsageData): string | undefined => {
+      const idx = fieldToIndex[field];
+      if (idx === undefined) return undefined;
+      let val = matches[idx] || '';
+      val = val.endsWith(',') ? val.slice(0, -1) : val;
+      val = val.replace(/^"(.*)"$/, '$1');
+      return val.trim();
+    };
+
     const parseOptionalNumber = (value: string | undefined): number | undefined => {
       if (value === undefined) return undefined;
       const normalized = value.replace(/,/g, '');
@@ -160,24 +190,50 @@ export function parseCSV(csv: string): CopilotUsageData[] {
       throw new Error(`Invalid requests used value at line ${index + 2}: "${requestsUsedStr}" must be a number`);
     }
 
-    const exceedsQuotaValue = getValue('exceedsQuota').toLowerCase();
-    if (exceedsQuotaValue !== 'true' && exceedsQuotaValue !== 'false') {
-      throw new Error(`Invalid exceeds quota value at line ${index + 2}: "${getValue('exceedsQuota')}" must be "true" or "false"`);
+    // exceedsQuota is optional; defaults to false when column is absent
+    const exceedsQuotaValue = getOptionalValue('exceedsQuota');
+    let exceedsQuota = false;
+    if (exceedsQuotaValue !== undefined) {
+      const lower = exceedsQuotaValue.toLowerCase();
+      if (lower !== 'true' && lower !== 'false') {
+        throw new Error(`Invalid exceeds quota value at line ${index + 2}: "${exceedsQuotaValue}" must be "true" or "false"`);
+      }
+      exceedsQuota = lower === 'true';
     }
 
     const totalMonthlyQuota = getValue('totalMonthlyQuota');
     const aicQuantity = parseOptionalNumber(getOptionalValue('aicQuantity'));
     const aicGrossAmount = parseOptionalNumber(getOptionalValue('aicGrossAmount'));
+    const appliedCostPerQuantity = parseOptionalNumber(getOptionalValue('appliedCostPerQuantity'));
+    const grossAmount = parseOptionalNumber(getOptionalValue('grossAmount'));
+    const discountAmount = parseOptionalNumber(getOptionalValue('discountAmount'));
+    const netAmount = parseOptionalNumber(getOptionalValue('netAmount'));
+    const product = getOptionalString('product');
+    const sku = getOptionalString('sku');
+    const unitType = getOptionalString('unitType');
+    const organization = getOptionalString('organization');
+    const repository = getOptionalString('repository');
+    const costCenterName = getOptionalString('costCenterName');
 
     return {
       timestamp,
       user,
       model,
       requestsUsed,
-      exceedsQuota: exceedsQuotaValue === 'true',
+      exceedsQuota,
       totalMonthlyQuota,
       ...(aicQuantity !== undefined ? { aicQuantity } : {}),
       ...(aicGrossAmount !== undefined ? { aicGrossAmount } : {}),
+      ...(appliedCostPerQuantity !== undefined ? { appliedCostPerQuantity } : {}),
+      ...(grossAmount !== undefined ? { grossAmount } : {}),
+      ...(discountAmount !== undefined ? { discountAmount } : {}),
+      ...(netAmount !== undefined ? { netAmount } : {}),
+      ...(product !== undefined ? { product } : {}),
+      ...(sku !== undefined ? { sku } : {}),
+      ...(unitType !== undefined ? { unitType } : {}),
+      ...(organization !== undefined ? { organization } : {}),
+      ...(repository !== undefined ? { repository } : {}),
+      ...(costCenterName !== undefined ? { costCenterName } : {}),
     };
   }).filter(Boolean) as CopilotUsageData[];
 }
@@ -188,6 +244,8 @@ export interface ModelUsageSummary {
   totalRequests: number;
   compliantRequests: number;
   exceedingRequests: number;
+  aicQuantity: number;
+  netAmount: number;
   multiplier: number;
   individualPlanLimit: number;
   businessPlanLimit: number;
@@ -245,6 +303,8 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
         totalRequests: 0,
         compliantRequests: 0,
         exceedingRequests: 0,
+        aicQuantity: 0,
+        netAmount: 0,
         multiplier,
         individualPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.INDIVIDUAL],
         businessPlanLimit: PLAN_MONTHLY_LIMITS[COPILOT_PLANS.BUSINESS],
@@ -254,6 +314,12 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
     }
     
     summary[item.model].totalRequests += item.requestsUsed;
+    if (item.aicQuantity !== undefined) {
+      summary[item.model].aicQuantity += item.aicQuantity;
+    }
+    if (item.netAmount !== undefined) {
+      summary[item.model].netAmount += item.netAmount;
+    }
     
     if (item.exceedsQuota) {
       summary[item.model].exceedingRequests += item.requestsUsed;
@@ -279,6 +345,8 @@ export function getModelUsageSummary(data: CopilotUsageData[]): ModelUsageSummar
       groupedSummary[key].totalRequests += item.totalRequests;
       groupedSummary[key].compliantRequests += item.compliantRequests;
       groupedSummary[key].exceedingRequests += item.exceedingRequests;
+      groupedSummary[key].aicQuantity += item.aicQuantity;
+      groupedSummary[key].netAmount += item.netAmount;
     }
     
     // For grouped default models, ensure multiplier is 0 and limits use constant values
@@ -1472,6 +1540,91 @@ export function getAICData(data: CopilotUsageData[], groupBy: AICGroupBy = 'day'
     if (item.aicGrossAmount !== undefined) {
       grouped[period].aicGrossAmount += item.aicGrossAmount;
     }
+  });
+
+  return Object.values(grouped).sort((a, b) => a.period.localeCompare(b.period));
+}
+
+// ─── Premium Cost Data (new format: net/gross/discount amounts) ──────────────
+
+export type PremiumCostGroupBy = 'day' | 'week' | 'month';
+
+export interface PremiumCostDataPoint {
+  label: string;
+  period: string;
+  grossAmount: number;
+  discountAmount: number;
+  netAmount: number;
+  quantity: number;
+}
+
+export interface PremiumCostDataStatus {
+  hasGrossAmount: boolean;
+  hasDiscountAmount: boolean;
+  hasNetAmount: boolean;
+  hasAnyCostData: boolean;
+}
+
+export function getPremiumCostDataStatus(data: CopilotUsageData[]): PremiumCostDataStatus {
+  let hasGrossAmount = false;
+  let hasDiscountAmount = false;
+  let hasNetAmount = false;
+  let hasAnyCostData = false;
+
+  for (const item of data) {
+    if (item.grossAmount !== undefined) {
+      hasGrossAmount = true;
+      if (item.grossAmount > 0) hasAnyCostData = true;
+    }
+    if (item.discountAmount !== undefined) {
+      hasDiscountAmount = true;
+      if (item.discountAmount > 0) hasAnyCostData = true;
+    }
+    if (item.netAmount !== undefined) {
+      hasNetAmount = true;
+      if (item.netAmount > 0) hasAnyCostData = true;
+    }
+    if (hasAnyCostData) break;
+  }
+
+  return { hasGrossAmount, hasDiscountAmount, hasNetAmount, hasAnyCostData };
+}
+
+export function getPremiumCostData(data: CopilotUsageData[], groupBy: PremiumCostGroupBy = 'day'): PremiumCostDataPoint[] {
+  if (!data.length) return [];
+
+  const grouped: Record<string, PremiumCostDataPoint> = {};
+
+  data.forEach(item => {
+    const dateStr = item.timestamp.toISOString().split('T')[0];
+    let period: string;
+    let label: string;
+
+    if (groupBy === 'day') {
+      period = dateStr;
+      label = dateStr;
+    } else if (groupBy === 'week') {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      const day = d.getUTCDay();
+      const diffToMon = day === 0 ? -6 : 1 - day;
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() + diffToMon);
+      period = mon.toISOString().split('T')[0];
+      label = mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    } else {
+      period = dateStr.slice(0, 7);
+      const d = new Date(dateStr + 'T00:00:00Z');
+      label = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
+    }
+
+    if (!grouped[period]) {
+      grouped[period] = { label, period, grossAmount: 0, discountAmount: 0, netAmount: 0, quantity: 0 };
+    }
+
+    if (item.grossAmount !== undefined) grouped[period].grossAmount += item.grossAmount;
+    if (item.discountAmount !== undefined) grouped[period].discountAmount += item.discountAmount;
+    if (item.netAmount !== undefined) grouped[period].netAmount += item.netAmount;
+    grouped[period].quantity += item.requestsUsed;
   });
 
   return Object.values(grouped).sort((a, b) => a.period.localeCompare(b.period));

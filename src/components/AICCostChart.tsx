@@ -105,7 +105,7 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
                 orientation="left"
                 tick={{ fill: "var(--foreground)" }}
                 tickLine={{ stroke: "var(--border)" }}
-                tickFormatter={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                tickFormatter={(v) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               />
             )}
 
@@ -136,8 +136,8 @@ export const AICCostChart = React.memo(function AICCostChart({ data }: AICCostCh
                       const isAmount = entry.dataKey === "aicGrossAmount";
                       const val = Number(entry.value);
                       const formatted = isAmount
-                        ? `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-                        : val.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 });
+                        ? `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : val.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
                       return (
                         <div key={String(entry.dataKey)} className="flex justify-between items-center gap-4">
                           <div className="flex items-center gap-1.5">
