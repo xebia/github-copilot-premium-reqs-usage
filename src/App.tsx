@@ -1194,7 +1194,7 @@ function App() {
           <div className="flex items-center gap-4">
             <img src="xebia-logo.png" alt="Xebia Logo" className="h-10" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              GitHub Copilot Premium Requests Usage Analyzer
+              GitHub Copilot AIC Usage Analyzer
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1280,7 +1280,7 @@ function App() {
                 ? "Please wait while we process your files..." 
                 : isDragging 
                   ? "Drop your files here..." 
-                  : "Upload your GitHub Copilot premium requests usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
+                  : "Upload your GitHub Copilot AI Credits (AIC) usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
             </p>
             
             <Button 
@@ -1310,7 +1310,7 @@ function App() {
                 <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
                   <li>Open your GitHub <span className="font-medium text-foreground">organization</span> or <span className="font-medium text-foreground">enterprise</span> settings.</li>
                   <li>Go to <span className="font-medium text-foreground">Billing and licensing</span> → <span className="font-medium text-foreground">Usage</span>.</li>
-                  <li>Select the <span className="font-medium text-foreground">Copilot premium requests usage report</span>, choose a date range, then click <span className="font-medium text-foreground">Export CSV</span>.</li>
+                  <li>Select the <span className="font-medium text-foreground">Copilot AIC usage report</span>, choose a date range, then click <span className="font-medium text-foreground">Export CSV</span>.</li>
                   <li>Download the CSV, then drop it above or click "Select CSV Files".</li>
                 </ol>
                 <a
