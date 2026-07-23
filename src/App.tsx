@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
-import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
+import { Upload, GithubLogo, CircleNotch, ArrowSquareOut } from "@phosphor-icons/react";
 import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
@@ -75,6 +75,14 @@ const BEHAVIOR_COLORS: Record<string, string> = {
   'Model Explorers': '#0EA5E9',
   'Model Loyalists': '#D97706',
   'Mixed Behavior': '#7C3AED',
+};
+const BEHAVIOR_DESCRIPTIONS: Record<string, string> = {
+  'Steady Users': 'Consistently active with high quota utilization and usage spread evenly across the month.',
+  'Low Engagement Users': 'Low quota utilization and few active days — minimal overall usage.',
+  'Burst Users': 'High quota utilization concentrated in short bursts, often front-loaded in the month.',
+  'Model Explorers': 'Use a wide variety of models with no single model dominating their usage.',
+  'Model Loyalists': 'Rely heavily on one or two models, with a single model making up most of their usage.',
+  'Mixed Behavior': "Usage pattern doesn't clearly fit the other segments — a mix of behaviors.",
 };
 
 type BehaviorScatterPoint = UserBehaviorDataPoint & {
@@ -1186,7 +1194,7 @@ function App() {
           <div className="flex items-center gap-4">
             <img src="xebia-logo.png" alt="Xebia Logo" className="h-10" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              GitHub Copilot Premium Requests Usage Analyzer
+              GitHub Copilot AIC Usage Analyzer
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1272,7 +1280,7 @@ function App() {
                 ? "Please wait while we process your files..." 
                 : isDragging 
                   ? "Drop your files here..." 
-                  : "Upload your GitHub Copilot premium requests usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
+                  : "Upload your GitHub Copilot AI Credits (AIC) usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
             </p>
             
             <Button 
@@ -1292,6 +1300,30 @@ function App() {
               className="hidden"
               disabled={isProcessing}
             />
+
+            {!isProcessing && (
+              <div className="mt-8 pt-6 border-t border-border text-left max-w-xl mx-auto">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground">
+                  <GithubLogo size={16} />
+                  Where do I get this CSV file?
+                </h3>
+                <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
+                  <li>Open your GitHub <span className="font-medium text-foreground">organization</span> or <span className="font-medium text-foreground">enterprise</span> settings.</li>
+                  <li>Go to <span className="font-medium text-foreground">Billing and licensing</span> → <span className="font-medium text-foreground">Usage</span>.</li>
+                  <li>Select the <span className="font-medium text-foreground">Copilot AIC usage report</span>, choose a date range, then click <span className="font-medium text-foreground">Export CSV</span>.</li>
+                  <li>Download the CSV, then drop it above or click "Select CSV Files".</li>
+                </ol>
+                <a
+                  href="https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/manage-company-spending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-3"
+                >
+                  View GitHub documentation
+                  <ArrowSquareOut size={14} />
+                </a>
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -2448,6 +2480,20 @@ function App() {
               <div className="text-sm text-muted-foreground">
                 X: Active Days % of Month, Y: Quota Utilization %
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              {Object.entries(BEHAVIOR_DESCRIPTIONS).map(([segment, description]) => (
+                <div key={segment} className="flex items-start gap-2 text-sm">
+                  <span
+                    className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: BEHAVIOR_COLORS[segment] || '#7C3AED' }}
+                  />
+                  <div>
+                    <span className="font-medium">{segment}</span>
+                    <span className="text-muted-foreground">: {description}</span>
+                  </div>
+                </div>
+              ))}
             </div>
             <Separator className="mb-6" />
             <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} unitLabel={unitLabel} />
