@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
-import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
+import { Upload, GithubLogo, CircleNotch, ArrowSquareOut } from "@phosphor-icons/react";
 import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
@@ -1292,6 +1292,30 @@ function App() {
               className="hidden"
               disabled={isProcessing}
             />
+
+            {!isProcessing && (
+              <div className="mt-8 pt-6 border-t border-border text-left max-w-xl mx-auto">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground">
+                  <GithubLogo size={16} />
+                  Where do I get this CSV file?
+                </h3>
+                <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
+                  <li>Open your GitHub <span className="font-medium text-foreground">organization</span> or <span className="font-medium text-foreground">enterprise</span> settings.</li>
+                  <li>Go to <span className="font-medium text-foreground">Billing and licensing</span> → <span className="font-medium text-foreground">Usage</span>.</li>
+                  <li>Select the <span className="font-medium text-foreground">Copilot premium requests usage report</span>, choose a date range, then click <span className="font-medium text-foreground">Export CSV</span>.</li>
+                  <li>Download the CSV, then drop it above or click "Select CSV Files".</li>
+                </ol>
+                <a
+                  href="https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/manage-company-spending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-3"
+                >
+                  View GitHub documentation
+                  <ArrowSquareOut size={14} />
+                </a>
+              </div>
+            )}
           </div>
         </Card>
       )}
