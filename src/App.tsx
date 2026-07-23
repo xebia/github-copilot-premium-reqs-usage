@@ -76,6 +76,14 @@ const BEHAVIOR_COLORS: Record<string, string> = {
   'Model Loyalists': '#D97706',
   'Mixed Behavior': '#7C3AED',
 };
+const BEHAVIOR_DESCRIPTIONS: Record<string, string> = {
+  'Steady Users': 'Consistently active with high quota utilization and usage spread evenly across the month.',
+  'Low Engagement Users': 'Low quota utilization and few active days — minimal overall usage.',
+  'Burst Users': 'High quota utilization concentrated in short bursts, often front-loaded in the month.',
+  'Model Explorers': 'Use a wide variety of models with no single model dominating their usage.',
+  'Model Loyalists': 'Rely heavily on one or two models, with a single model making up most of their usage.',
+  'Mixed Behavior': "Usage pattern doesn't clearly fit the other segments — a mix of behaviors.",
+};
 
 type BehaviorScatterPoint = UserBehaviorDataPoint & {
   scatterX: number;
@@ -2448,6 +2456,20 @@ function App() {
               <div className="text-sm text-muted-foreground">
                 X: Active Days % of Month, Y: Quota Utilization %
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              {Object.entries(BEHAVIOR_DESCRIPTIONS).map(([segment, description]) => (
+                <div key={segment} className="flex items-start gap-2 text-sm">
+                  <span
+                    className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: BEHAVIOR_COLORS[segment] || '#7C3AED' }}
+                  />
+                  <div>
+                    <span className="font-medium">{segment}</span>
+                    <span className="text-muted-foreground">: {description}</span>
+                  </div>
+                </div>
+              ))}
             </div>
             <Separator className="mb-6" />
             <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} unitLabel={unitLabel} />
