@@ -1,7 +1,7 @@
 # GitHub Copilot Custom Instructions
 
 ## Project Overview
-This is a **GitHub Copilot Premium Requests Usage Analyzer** - a React-based single-page application that visualizes GitHub Copilot premium request usage data from CSV exports. The primary goal is to help teams understand their Copilot usage patterns, model distribution, and quota status.
+This is a **GitHub Copilot AIC Usage Analyzer** - a React-based single-page application that visualizes GitHub Copilot AI Credits (AIC) usage data from CSV exports. The primary goal is to help teams understand their Copilot usage patterns, model distribution, and quota status.
 
 ## Architecture & Technology Stack
 
