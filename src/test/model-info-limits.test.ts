@@ -45,14 +45,14 @@ describe('Model Info and Limits Feature', () => {
     }
   ];
 
-  it('should calculate plan limits based on model multipliers', () => {
+  it('should identify free (default) vs premium models', () => {
     const result = getModelUsageSummary(mockData);
     
     const defaultGroup = result.find(item => item.model === 'Default (GPT-4o, GPT-4.1)');
     expect(defaultGroup).toBeDefined();
     
     if (defaultGroup) {
-      expect(defaultGroup.multiplier).toBe(0);
+      expect(defaultGroup.multiplier).toBe(0); // 0 = free/included in subscription
       expect(defaultGroup.individualPlanLimit).toBe(50); // Constant plan limit, not Infinity
       expect(defaultGroup.businessPlanLimit).toBe(300); // Constant plan limit, not Infinity
       expect(defaultGroup.enterprisePlanLimit).toBe(1000); // Constant plan limit, not Infinity
@@ -105,7 +105,7 @@ describe('Model Info and Limits Feature', () => {
 
     const o3Model = result.find(item => item.model === 'o3-mini-2025-01-31');
     if (o3Model) {
-      // 10 exceeding requests * $0.04 = $0.40
+      // 10 exceeding requests × $0.04/PRU = $0.40
       expect(o3Model.excessCost).toBe(10 * EXCESS_REQUEST_COST);
     }
   });
@@ -141,7 +141,7 @@ describe('Model Info and Limits Feature', () => {
     });
   });
 
-  it('should handle unknown models with default multiplier', () => {
+  it('should handle unknown models with default premium indicator', () => {
     const unknownModelData: CopilotUsageData[] = [
       {
         timestamp: new Date('2025-01-01T10:00:00Z'),
@@ -157,9 +157,9 @@ describe('Model Info and Limits Feature', () => {
     
     expect(result).toHaveLength(1);
     expect(result[0].model).toBe('unknown-model-2025');
-    expect(result[0].multiplier).toBe(1); // Default multiplier
-    expect(result[0].individualPlanLimit).toBe(50); // 50 / 1
-    expect(result[0].businessPlanLimit).toBe(300); // 300 / 1
+    expect(result[0].multiplier).toBe(1); // Unknown models treated as premium (1 PRU each)
+    expect(result[0].individualPlanLimit).toBe(50);
+    expect(result[0].businessPlanLimit).toBe(300);
   });
 
   it('should sort results by total requests descending', () => {

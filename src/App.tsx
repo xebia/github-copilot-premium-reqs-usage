@@ -1580,7 +1580,7 @@ function App() {
                     </div>
                     <div
                       className="flex items-center gap-2"
-                      title="Projected total cost if the monthly quota limit did not exist, based on each user's usage rate and model cost multipliers"
+                      title="Projected total cost if the monthly quota limit did not exist, based on each user's usage rate ($0.04 per premium request)"
                     >
                       <span className="text-sm text-muted-foreground">Expected Cost (no limit):</span>
                       <span className="text-lg font-bold text-orange-600">
