@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, DragEvent, useEffect, useMemo } from "react";
-import { Upload, GithubLogo, CircleNotch } from "@phosphor-icons/react";
+import { Upload, GithubLogo, CircleNotch, ArrowSquareOut } from "@phosphor-icons/react";
 import { UserSquare, ChevronRight, ChevronLeft, Shield, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DeploymentFooter } from "@/components/DeploymentFooter";
 import { 
@@ -52,11 +52,13 @@ import {
   getUserAnalysisData,
   getUserBehaviorData,
   EXCESS_REQUEST_COST,
-  getExpectedExcessCost
+  getExpectedExcessCost,
+  getPremiumCostDataStatus
 } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
 import { UserSearch } from "@/components/UserSearch";
 import { AICCostChart } from "@/components/AICCostChart";
+import { PremiumCostChart } from "@/components/PremiumCostChart";
 
 const MODEL_COLORS = [
   "#8B5CF6", // Purple
@@ -73,6 +75,14 @@ const BEHAVIOR_COLORS: Record<string, string> = {
   'Model Explorers': '#0EA5E9',
   'Model Loyalists': '#D97706',
   'Mixed Behavior': '#7C3AED',
+};
+const BEHAVIOR_DESCRIPTIONS: Record<string, string> = {
+  'Steady Users': 'Consistently active with high quota utilization and usage spread evenly across the month.',
+  'Low Engagement Users': 'Low quota utilization and few active days — minimal overall usage.',
+  'Burst Users': 'High quota utilization concentrated in short bursts, often front-loaded in the month.',
+  'Model Explorers': 'Use a wide variety of models with no single model dominating their usage.',
+  'Model Loyalists': 'Rely heavily on one or two models, with a single model making up most of their usage.',
+  'Mixed Behavior': "Usage pattern doesn't clearly fit the other segments — a mix of behaviors.",
 };
 
 type BehaviorScatterPoint = UserBehaviorDataPoint & {
@@ -322,13 +332,13 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
                             />
                             <span>{entry.name}:</span>
                           </div>
-                          <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</div>
+                          <div className="font-medium">{Number(entry.value).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</div>
                         </div>
                       ))}
                       {filtered.length > 1 && (
                         <div className="border-t pt-1 mt-1 flex justify-between font-semibold">
                           <span>Total:</span>
-                          <span>{total.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</span>
+                          <span>{total.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
                         </div>
                       )}
                     </div>
@@ -356,12 +366,14 @@ const WeeklyTopModelsChart = React.memo(function WeeklyTopModelsChart({
 type BehaviorScatterChartProps = {
   behaviorData: BehaviorScatterPoint[];
   displayUser: (name: string) => string;
+  unitLabel: string;
 };
 
 // Isolated the graph due to latency issues. Allows toggling segments without reprocessing data or re-rendering other graphs.
 const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
   behaviorData,
   displayUser,
+  unitLabel,
 }: BehaviorScatterChartProps) {
   const [hiddenBehaviorSegments, setHiddenBehaviorSegments] = useState<Set<string>>(new Set());
 
@@ -459,7 +471,7 @@ const BehaviorScatterChart = React.memo(function BehaviorScatterChart({
                         <div>Models Used: <span className="font-medium">{point.modelDiversity.toLocaleString()}</span></div>
                         <div>Top Model Share: <span className="font-medium">{point.topModelSharePct.toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
                         <div>First Week Usage: <span className="font-medium">{(point.frontloadIndex * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</span></div>
-                        <div>Total Requests: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}</span></div>
+                        <div>Total {unitLabel}: <span className="font-medium">{point.totalRequests.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span></div>
                       </div>
                     </div>
                   );
@@ -501,6 +513,7 @@ function App() {
   const [selectedPlan, setSelectedPlan] = useState<string>(COPILOT_PLANS.BUSINESS); // Default to Business
   const [isProcessing, setIsProcessing] = useState(false);
   const [visibleBars, setVisibleBars] = useState(['compliantRequests', 'exceedingRequests']);
+  const [hiddenPowerUserModelNames, setHiddenPowerUserModelNames] = useState<string[]>([]);
   const [showExceededDetails, setShowExceededDetails] = useState(false);
   const [exceededDetailsData, setExceededDetailsData] = useState<ExceededRequestDetail[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -567,6 +580,14 @@ function App() {
     if (!selectedSearchUser) return data;
     return data.filter(item => item.user === selectedSearchUser);
   }, [data, selectedSearchUser]);
+
+  // Detect whether the data contains new format fields (premium cost data)
+  const isNewFormat = useMemo(() => {
+    if (!displayData || !displayData.length) return false;
+    return getPremiumCostDataStatus(displayData).hasAnyCostData;
+  }, [displayData]);
+
+  const unitLabel = isNewFormat ? 'AI Credits' : 'Requests';
 
   /**
    * Process data for a specific month and update all derived state
@@ -731,6 +752,12 @@ function App() {
     const breakdown = getFilteredPowerUserBreakdown();
     return getUniqueModelsFromBreakdown(breakdown);
   }, [getFilteredPowerUserBreakdown]);
+
+  // Get visible power user models (excluding hidden ones)
+  const getVisiblePowerUserModels = useCallback(() => {
+    const allModels = getPowerUserModels();
+    return allModels.filter(model => !hiddenPowerUserModelNames.includes(model));
+  }, [getPowerUserModels, hiddenPowerUserModelNames]);
 
   const resetDataState = useCallback(() => {
     setData(null);
@@ -1083,17 +1110,29 @@ function App() {
     return item.multiplier === 0 ? "Unlimited" : limit.toLocaleString();
   }, [selectedPlan]);
 
-  const handleLegendClick = (barKey) => {
+  const handleLegendClick = (barKey: string) => {
     if (barKey === 'all') {
       setVisibleBars(['compliantRequests', 'exceedingRequests']);
+      return;
+    }
+    
+    // Map the display names back to data keys
+    const dataKeyMap: Record<string, string> = {
+      'Compliant Requests': 'compliantRequests',
+      'Exceeding Requests': 'exceedingRequests'
+    };
+    const actualKey = dataKeyMap[barKey] || barKey;
+    
+    // Check if this is a compliance bar (compliantRequests/exceedingRequests)
+    if (actualKey === 'compliantRequests' || actualKey === 'exceedingRequests') {
+      setVisibleBars(prev => 
+        prev.includes(actualKey) ? prev.filter(k => k !== actualKey) : [...prev, actualKey]
+      );
     } else {
-      // Map the display names back to data keys
-      const dataKeyMap = {
-        'Compliant Requests': 'compliantRequests',
-        'Exceeding Requests': 'exceedingRequests'
-      };
-      const actualKey = dataKeyMap[barKey] || barKey;
-      setVisibleBars([actualKey]);
+      // This is a model name - toggle in hidden list
+      setHiddenPowerUserModelNames(prev => 
+        prev.includes(actualKey) ? prev.filter(m => m !== actualKey) : [...prev, actualKey]
+      );
     }
   };
 
@@ -1110,13 +1149,13 @@ function App() {
     setShowExceededDetails(true);
   };
 
-  const CustomLegend = ({ payload }) => {
+  const CustomLegend = ({ payload }: { payload: any[] }) => {
     // Define all possible bars
     const allPossibleBars = ['compliantRequests', 'exceedingRequests'];
-    const showAllOption = allPossibleBars.length > 1 && visibleBars.length === 1;
+    const showAllOption = allPossibleBars.length > 1 && visibleBars.length < 2;
     
     return (
-      <ul className="flex gap-4">
+      <ul className="flex flex-wrap gap-4">
         {/* Only show "All Requests" if there are multiple filter options and not all are currently visible */}
         {showAllOption && (
           <li
@@ -1127,16 +1166,23 @@ function App() {
             All Requests
           </li>
         )}
-        {payload.map((entry) => (
-          <li
-            key={entry.dataKey}
-            className="cursor-pointer flex items-center gap-2 text-gray-600 hover:text-black"
-            onClick={() => handleLegendClick(entry.dataKey)}
-          >
-            <span className="w-4 h-4" style={{ backgroundColor: entry.color }}></span>
-            {entry.value}
-          </li>
-        ))}
+        {payload.map((entry) => {
+          const isModel = entry.dataKey !== 'compliantRequests' && entry.dataKey !== 'exceedingRequests';
+          const isHidden = isModel && hiddenPowerUserModelNames.includes(entry.dataKey);
+          const isComplianceHidden = !isModel && !visibleBars.includes(entry.dataKey);
+          const dimmed = isHidden || isComplianceHidden;
+          
+          return (
+            <li
+              key={entry.dataKey}
+              className={`cursor-pointer flex items-center gap-2 transition-opacity hover:opacity-80 ${dimmed ? 'opacity-40' : ''}`}
+              onClick={() => handleLegendClick(entry.dataKey)}
+            >
+              <span className="w-4 h-4 flex-shrink-0" style={{ backgroundColor: entry.color }}></span>
+              <span className={dimmed ? 'line-through' : ''}>{entry.value}</span>
+            </li>
+          );
+        })}
       </ul>
     );
   };
@@ -1148,7 +1194,7 @@ function App() {
           <div className="flex items-center gap-4">
             <img src="xebia-logo.png" alt="Xebia Logo" className="h-10" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              GitHub Copilot Premium Requests Usage Analyzer
+              GitHub Copilot AIC Usage Analyzer
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -1234,7 +1280,7 @@ function App() {
                 ? "Please wait while we process your files..." 
                 : isDragging 
                   ? "Drop your files here..." 
-                  : "Upload your GitHub Copilot premium requests usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
+                  : "Upload your GitHub Copilot AI Credits (AIC) usage CSV exports to visualize the data. You can select multiple files at once — they will be merged automatically."}
             </p>
             
             <Button 
@@ -1254,6 +1300,30 @@ function App() {
               className="hidden"
               disabled={isProcessing}
             />
+
+            {!isProcessing && (
+              <div className="mt-8 pt-6 border-t border-border text-left max-w-xl mx-auto">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-foreground">
+                  <GithubLogo size={16} />
+                  Where do I get this CSV file?
+                </h3>
+                <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
+                  <li>Open your GitHub <span className="font-medium text-foreground">organization</span> or <span className="font-medium text-foreground">enterprise</span> settings.</li>
+                  <li>Go to <span className="font-medium text-foreground">Billing and licensing</span> → <span className="font-medium text-foreground">Usage</span>.</li>
+                  <li>Select the <span className="font-medium text-foreground">Copilot AIC usage report</span>, choose a date range, then click <span className="font-medium text-foreground">Export CSV</span>.</li>
+                  <li>Download the CSV, then drop it above or click "Select CSV Files".</li>
+                </ol>
+                <a
+                  href="https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/manage-company-spending"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-3"
+                >
+                  View GitHub documentation
+                  <ArrowSquareOut size={14} />
+                </a>
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -1331,7 +1401,7 @@ function App() {
                     {/* User Statistics Summary */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                       <div>
-                        <div className="text-sm text-muted-foreground">Total Requests</div>
+                        <div className="text-sm text-muted-foreground">Total {unitLabel}</div>
                         <div className="text-lg font-bold">{userAnalysisData.totalRequests.toLocaleString()}</div>
                       </div>
                       <div>
@@ -1367,7 +1437,7 @@ function App() {
                               <TableHead>Date Range</TableHead>
                               <TableHead className="text-right">Compliant Requests</TableHead>
                               <TableHead className="text-right">Exceeding Requests</TableHead>
-                              <TableHead className="text-right">Total Requests</TableHead>
+                              <TableHead className="text-right">Total {unitLabel}</TableHead>
                               <TableHead>Models Used</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -1429,9 +1499,9 @@ function App() {
                 <div className="p-5">
                   <div className="flex items-center gap-6 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Total Requests:</span>
+                      <span className="text-sm text-muted-foreground">Total {unitLabel}:</span>
                       <span className="text-lg font-bold">
-                        {displayData.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                        {displayData.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1474,6 +1544,7 @@ function App() {
                         {uniqueModels.length}
                       </span>
                     </div>
+                    {!isNewFormat && (<>
                     <div
                       className={usersExceedingQuota > 0 ? "xebia-action-button" : "flex items-center gap-2"}
                       onClick={usersExceedingQuota > 0 ? () => setShowExceededUsersOverview(true) : undefined}
@@ -1516,6 +1587,7 @@ function App() {
                         ${expectedExcessCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </span>
                     </div>
+                    </>)}
                     {powerUserSummary && (
                       <Sheet>
                         <SheetTrigger asChild>
@@ -1537,12 +1609,12 @@ function App() {
                             {/* Power User Summary */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               <Card className="p-4">
-                                <h3 className="text-md font-medium mb-3">Total Requests by Power Users</h3>
+                                <h3 className="text-md font-medium mb-3">Total {unitLabel} by Power Users</h3>
                                 <div className="space-y-2">
                                   <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Total Requests:</span>
+              <span className="text-sm text-muted-foreground">Total {unitLabel}:</span>
                                     <span className="font-bold">
-                                      {powerUserSummary.totalPowerUserRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                                      {powerUserSummary.totalPowerUserRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                                     </span>
                                   </div>
                                   <div className="flex justify-between items-center">
@@ -1552,21 +1624,21 @@ function App() {
                                 </div>
                               </Card>
                               
-                              <Card className="p-4">
-                                <h3 className="text-md font-medium mb-3">Requests per Model</h3>
-                                <div className="overflow-auto max-h-40">
-                                  <Table>
-                                    <TableHeader>
+                              <Card className="p-4 min-w-0">
+                                <h3 className="text-md font-medium mb-3">{unitLabel} per Model</h3>
+                                <div className="overflow-x-auto max-h-40">
+                                  <Table className="w-full">
+                    <TableHeader className="sticky top-0 z-10 bg-background">
                                       <TableRow>
-                                        <TableHead>Model</TableHead>
-                                        <TableHead className="text-right">Requests</TableHead>
+                                        <TableHead className="whitespace-nowrap">Model</TableHead>
+                                        <TableHead className="text-right whitespace-nowrap">{unitLabel}</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                       {powerUserSummary.powerUserModelSummary.map((item) => (
                                         <TableRow key={item.model}>
-                                          <TableCell className="font-medium">{item.model}</TableCell>
-                                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                                          <TableCell className="font-medium max-w-[200px] truncate" title={item.model}>{item.model}</TableCell>
+                                          <TableCell className="text-right whitespace-nowrap">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
@@ -1578,12 +1650,12 @@ function App() {
                             {/* Power User Activity Chart */}
                             <Card className="p-4">
                               <h3 className="text-md font-medium mb-3">Power User Activity Over Time</h3>
-                              <div className="h-[300px]">
+                              <div className="h-[300px] overflow-hidden">
                                 <ChartContainer 
                                   config={{
                                     requests: { color: "#3b82f6" },
                                   }}
-                                  className="h-full w-full"
+                                  className="h-full w-full min-w-0"
                                 >
                                   <LineChart data={getPowerUserDailyData(powerUserSummary.powerUsers)}>
                                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -1605,7 +1677,7 @@ function App() {
                                               <div className="font-medium mb-2">{label}</div>
                                               <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                                                <span>Requests: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</span>
+                                                <span>{unitLabel}: {Number(payload[0].value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</span>
                                               </div>
                                             </div>
                                           );
@@ -1616,7 +1688,7 @@ function App() {
                                     <Line
                                       type="monotone"
                                       dataKey="requests"
-                                      name="Requests"
+                                       name={unitLabel}
                                       stroke="#3b82f6" 
                                       strokeWidth={2}
                                       activeDot={{ r: 6 }}
@@ -1633,7 +1705,7 @@ function App() {
                                   onClick={() => selectedPowerUser && handlePowerUserSelect(null)}
                                   title={selectedPowerUser ? 'Click to show all power users' : undefined}
                                 >
-                                  Power User Requests Breakdown (By Model & Compliance)
+                                  Power User {unitLabel} Breakdown (By Model & Compliance)
                                   {selectedPowerUser && (
                                     <span className="text-sm font-normal text-muted-foreground ml-2">
                                       - {displayUser(selectedPowerUser)}
@@ -1655,10 +1727,10 @@ function App() {
                                   </Button>
                                 )}
                               </div>
-                              <div className="h-[300px]">
+                              <div className="h-[300px] overflow-hidden">
                                 <ChartContainer 
                                   config={(() => {
-                                    const models = getPowerUserModels();
+                                    const models = getVisiblePowerUserModels();
                                     const modelColors = getModelColors();
                                     const config: Record<string, { color: string }> = {
                                       compliantRequests: { color: "#10b981" }, // green
@@ -1666,137 +1738,137 @@ function App() {
                                     };
                                     
                                     // Add each model with its color
-                                    models.forEach((model, index) => {
+                                    models.forEach((model) => {
                                       config[model] = { color: modelColors[model] || "#94a3b8" };
                                     });
                                     
                                     return config;
                                   })()}
-                                  className="h-full w-full"
+                                  className="h-full w-full min-w-0"
                                 >
-                                  <BarChart data={getFilteredPowerUserBreakdown()}>
-                                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                                    <XAxis 
-                                      dataKey="date" 
-                                      tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }}
-                                      domain={['dataMin', lastDateAvailable || 'dataMax']}
-                                    />
-                                    <YAxis 
-                                      tick={{ fill: 'var(--foreground)' }}
-                                      tickLine={{ stroke: 'var(--border)' }} 
-                                    />
-                                    <ChartTooltip
-                                      content={({ active, payload, label }) => {
-                                        if (!active || !payload?.length) return null;
-                                        
-                                        // Filter to only show data for visible bars
-                                        const visibleData = payload.filter(p => visibleBars.includes(p.dataKey));
-                                        if (!visibleData.length) return null;
-                                        
-                                        // Configuration for tooltip items
-                                        const tooltipConfig = {
-                                          compliantRequests: { 
-                                            label: 'Compliant', 
-                                            color: 'bg-[#10b981]' 
-                                          },
-                                          exceedingRequests: { 
-                                            label: 'Exceeding', 
-                                            color: 'bg-[#ef4444]' 
-                                          }
-                                        };
-                                        
-                                        const formatNumber = (value) => 
-                                          Number(value).toLocaleString(undefined, {
-                                            maximumFractionDigits: 8, 
-                                            minimumFractionDigits: 0
-                                          });
-
-                                        // Single filter view - show only the filtered data
-                                        if (visibleData.length === 1) {
-                                          const item = visibleData[0];
-                                          const config = tooltipConfig[item.dataKey];
+                                  {getVisiblePowerUserModels().length > 0 || visibleBars.length > 0 ? (
+                                    <BarChart data={getFilteredPowerUserBreakdown()}>
+                                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                      <XAxis 
+                                        dataKey="date" 
+                                        tick={{ fill: 'var(--foreground)' }}
+                                        tickLine={{ stroke: 'var(--border)' }}
+                                        domain={['dataMin', lastDateAvailable || 'dataMax']}
+                                      />
+                                      <YAxis 
+                                        tick={{ fill: 'var(--foreground)' }}
+                                        tickLine={{ stroke: 'var(--border)' }} 
+                                      />
+                                      <ChartTooltip
+                                        content={({ active, payload, label }) => {
+                                          if (!active || !payload?.length) return null;
                                           
+                                          // Filter to only show data for visible bars
+                                          const allVisibleKeys = [...visibleBars, ...getVisiblePowerUserModels()];
+                                          const visibleData = payload.filter(p => allVisibleKeys.includes(p.dataKey));
+                                          if (!visibleData.length) return null;
+                                          
+                                          const formatNumber = (value) => 
+                                            Number(value).toLocaleString(undefined, {
+                                              maximumFractionDigits: 2, 
+                                              minimumFractionDigits: 2
+                                            });
+
+                                          // Single item view
+                                          if (visibleData.length === 1) {
+                                            const item = visibleData[0];
+                                            const modelColors = getModelColors();
+                                            const bgColor = item.dataKey === 'compliantRequests' ? '#10b981' 
+                                              : item.dataKey === 'exceedingRequests' ? '#ef4444' 
+                                              : modelColors[item.dataKey] || '#94a3b8';
+                                            const displayName = item.dataKey === 'compliantRequests' ? 'Compliant'
+                                              : item.dataKey === 'exceedingRequests' ? 'Exceeding'
+                                              : item.dataKey;
+                                            
+                                            return (
+                                              <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
+                                                <div className="font-medium mb-2">{label}</div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: bgColor }} />
+                                                  <span>{displayName}: {formatNumber(item.value)}</span>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+
+                                          // Multi-item view
+                                          const modelColors = getModelColors();
+                                          const total = visibleData.reduce((sum: number, item: any) => sum + Number(item.value), 0);
+
                                           return (
                                             <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
                                               <div className="font-medium mb-2">{label}</div>
-                                              <div className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${config.color}`} />
-                                                <span>{config.label}: {formatNumber(item.value)}</span>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                {visibleData.map(item => {
+                                                  const bgColor = item.dataKey === 'compliantRequests' ? '#10b981' 
+                                                    : item.dataKey === 'exceedingRequests' ? '#ef4444' 
+                                                    : modelColors[item.dataKey] || '#94a3b8';
+                                                  const displayName = item.dataKey === 'compliantRequests' ? 'Compliant'
+                                                    : item.dataKey === 'exceedingRequests' ? 'Exceeding'
+                                                    : item.dataKey;
+                                                  return (
+                                                    <React.Fragment key={item.dataKey}>
+                                                      <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: bgColor }} />
+                                                        <span>{displayName}:</span>
+                                                      </div>
+                                                      <div className="text-right">{formatNumber(item.value)}</div>
+                                                    </React.Fragment>
+                                                  );
+                                                })}
+                                                <div className="font-medium">Total:</div>
+                                                <div className="text-right font-medium">{formatNumber(total)}</div>
                                               </div>
                                             </div>
                                           );
-                                        }
-
-                                        // Multi-filter view - show detailed breakdown
-                                        const values = visibleData.reduce((acc, item) => {
-                                          acc[item.dataKey] = Number(item.value);
-                                          return acc;
-                                        }, {} as Record<string, number>);
-                                        
-                                        const total = Object.values(values).reduce((sum: number, val: number) => sum + val, 0);
-
+                                        }}
+                                      />
+                                      <Legend content={(props) => <CustomLegend payload={props.payload} />} />
+                                      
+                                      {/* Dynamic stacked bars for each model */}
+                                      {getVisiblePowerUserModels().map((model) => {
+                                        const modelColors = getModelColors();
                                         return (
-                                          <div className="border rounded-lg bg-background shadow-lg p-3 text-xs">
-                                            <div className="font-medium mb-2">{label}</div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                              {visibleData.map(item => {
-                                                const config = tooltipConfig[item.dataKey];
-                                                return (
-                                                  <React.Fragment key={item.dataKey}>
-                                                    <div className="flex items-center gap-1.5">
-                                                      <div className={`w-2 h-2 rounded-full ${config.color}`} />
-                                                      <span>{config.label}:</span>
-                                                    </div>
-                                                    <div className="text-right">{formatNumber(item.value)}</div>
-                                                  </React.Fragment>
-                                                );
-                                              })}
-                                              <div className="font-medium">Total:</div>
-                                              <div className="text-right font-medium">{formatNumber(total)}</div>
-                                            </div>
-                                          </div>
+                                          <Bar
+                                            key={model}
+                                            dataKey={model}
+                                            name={model}
+                                            stackId="models"
+                                            fill={modelColors[model] || "#94a3b8"}
+                                          />
                                         );
-                                      }}
-                                    />
-                                    <Legend content={(props) => <CustomLegend payload={props.payload} />} />
-                                    
-                                    {/* Dynamic stacked bars for each model */}
-                                    {getPowerUserModels().map((model) => {
-                                      const modelColors = getModelColors();
-                                      return (
+                                      })}
+                                      
+                                      {/* Keep the original compliant/exceeding bars but make them toggleable */}
+                                      {visibleBars.includes('compliantRequests') && (
                                         <Bar
-                                          key={model}
-                                          dataKey={model}
-                                          name={model}
-                                          stackId="models"
-                                          fill={modelColors[model] || "#94a3b8"}
+                                          dataKey="compliantRequests"
+                                          name="Compliant Requests"
+                                          stackId="requests"
+                                          fill="#10b981"
                                         />
-                                      );
-                                    })}
-                                    
-                                    {/* Keep the original compliant/exceeding bars but make them toggleable */}
-                                    {visibleBars.includes('compliantRequests') && (
-                                      <Bar
-                                        dataKey="compliantRequests"
-                                        name="Compliant Requests"
-                                        stackId="requests"
-                                        fill="#10b981"
-                                        onMouseOver={(e) => console.log('Hovered Compliant', e)}
-                                      />
-                                    )}
-                                    {visibleBars.includes('exceedingRequests') && (
-                                      <Bar
-                                        dataKey="exceedingRequests"
-                                        name="Exceeding Requests"
-                                        stackId="requests"
-                                        fill="#ef4444"
-                                        onClick={handleExceedingBarClick}
-                                        style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
-                                        onMouseOver={(e) => console.log('Hovered Exceeding', e)}
-                                      />
-                                    )}
-                                  </BarChart>
+                                      )}
+                                      {visibleBars.includes('exceedingRequests') && (
+                                        <Bar
+                                          dataKey="exceedingRequests"
+                                          name="Exceeding Requests"
+                                          stackId="requests"
+                                          fill="#ef4444"
+                                          onClick={handleExceedingBarClick}
+                                          style={{ cursor: selectedPowerUser ? 'pointer' : 'default' }}
+                                        />
+                                      )}
+                                    </BarChart>
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                                      No data to display. All models and request types are hidden.
+                                    </div>
+                                  )}
                                 </ChartContainer>
                               </div>
                             </Card>
@@ -1810,8 +1882,8 @@ function App() {
                                     <TableRow>
                                       <TableHead className="w-12">#</TableHead>
                                       <TableHead>User</TableHead>
-                                      <TableHead className="text-right">Total Requests</TableHead>
-                                      <TableHead className="text-right">Exceeding Requests</TableHead>
+                                      <TableHead className="text-right">Total {unitLabel}</TableHead>
+                                      {!isNewFormat && (<TableHead className="text-right">Exceeding Requests</TableHead>)}
                                       <TableHead className="text-right">Models Used</TableHead>
                                     </TableRow>
                                   </TableHeader>
@@ -1833,8 +1905,8 @@ function App() {
                                             <UserSquare className={`h-3 w-3 transition-all duration-200 group-hover:scale-110 opacity-60 group-hover:opacity-100 ${selectedPowerUser === user.user ? 'text-blue-700' : 'text-blue-500'}`} />
                                           </div>
                                         </TableCell>
-                                        <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
-                                        <TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                                        <TableCell className="text-right">{user.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                                        {!isNewFormat && (<TableCell className="text-right">{user.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>)}
                                         <TableCell className="text-right">{Object.keys(user.requestsByModel).length}</TableCell>
                                       </TableRow>
                                     ))}
@@ -1867,26 +1939,13 @@ function App() {
               <Card className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-md font-medium">
-                    Requests per Model
+                    {unitLabel} per Model
                     {selectedSearchUser && (
                       <span className="ml-2 text-sm font-normal text-blue-600">
                         - {displayUser(selectedSearchUser)}
                       </span>
                     )}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Plan Type:</span>
-                    <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Select plan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={COPILOT_PLANS.INDIVIDUAL}>Individual</SelectItem>
-                        <SelectItem value={COPILOT_PLANS.BUSINESS}>Business</SelectItem>
-                        <SelectItem value={COPILOT_PLANS.ENTERPRISE}>Enterprise</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 <div className="overflow-auto max-h-60">
                   <Table>
@@ -1910,7 +1969,7 @@ function App() {
                             className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
                             onClick={() => handleModelSort('totalRequests')}
                           >
-                            Total Requests
+                            Total {unitLabel}
                             {modelSortColumn === 'totalRequests' ? (
                               modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
                             ) : (
@@ -1918,6 +1977,7 @@ function App() {
                             )}
                           </button>
                         </TableHead>
+                        {!isNewFormat ? (<>
                         <TableHead className="text-right">
                           <button
                             className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
@@ -1944,15 +2004,66 @@ function App() {
                             )}
                           </button>
                         </TableHead>
+                        </>) : (<>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('aicQuantity')}
+                          >
+                            AIC Qty
+                            {modelSortColumn === 'aicQuantity' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('netAmount')}
+                          >
+                            Net Cost
+                            {modelSortColumn === 'netAmount' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        </>)}
+                        {!isNewFormat && (
+                        <TableHead className="text-right">
+                          <button
+                            className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
+                            onClick={() => handleModelSort('multiplier')}
+                          >
+                            Multiplier
+                            {modelSortColumn === 'multiplier' ? (
+                              modelSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpDown className="h-3 w-3 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedModelSummary.map((item) => (
                         <TableRow key={item.model}>
                           <TableCell className="font-medium">{item.model}</TableCell>
-                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
-                          <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
-                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</TableCell>
+                          <TableCell className="text-right">{item.totalRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          {!isNewFormat ? (<>
+                          <TableCell className="text-right">{item.compliantRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="text-right">{item.exceedingRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          </>) : (<>
+                          <TableCell className="text-right">{item.aicQuantity.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="text-right">${item.netAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                          </>)}
+                          {!isNewFormat && (
+                          <TableCell className="text-right">{item.multiplier}x</TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1960,14 +2071,26 @@ function App() {
                       <TableRow className="bg-accent/20">
                         <TableCell className="font-medium">Total</TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                          {modelSummary.reduce((sum, item) => sum + item.totalRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
+                        </TableCell>
+                        {!isNewFormat ? (<>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.compliantRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                          {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
+                        </TableCell>
+                        </>) : (<>
+                        <TableCell className="text-right font-medium">
+                          {modelSummary.reduce((sum, item) => sum + item.aicQuantity, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {modelSummary.reduce((sum, item) => sum + item.exceedingRequests, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                          ${modelSummary.reduce((sum, item) => sum + item.netAmount, 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </TableCell>
+                        </>)}
+                        {!isNewFormat && (
+                        <TableCell className="text-right">—</TableCell>
+                        )}
                       </TableRow>
                     </TableFooter>
                   </Table>
@@ -1979,6 +2102,7 @@ function App() {
           </div>
           
           <div>
+            {!isNewFormat && (<>
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-2xl font-semibold">
                 Daily Usage Overview
@@ -2031,14 +2155,14 @@ function App() {
                                   <div className="w-2 h-2 rounded-full bg-[#10b981]" />
                                   <span>Compliant:</span>
                                 </div>
-                                <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
+                                <div className="text-right">{Number(compliant).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                                 <div className="flex items-center gap-1.5">
                                   <div className="w-2 h-2 rounded-full bg-[#ef4444]" />
                                   <span>Exceeding:</span>
                                 </div>
-                                <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
+                                <div className="text-right">{Number(exceeding).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                                 <div className="font-medium">Total:</div>
-                                <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
+                                <div className="text-right font-medium">{Number(total).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                               </div>
                             </div>
                           </div>
@@ -2143,6 +2267,11 @@ function App() {
                 </div>
               </>
             )}
+            </>)}
+
+            {isNewFormat && (
+              <PremiumCostChart data={displayData} />
+            )}
 
             {/* Bar Chart - Requests per Model per Day (All Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
@@ -2166,7 +2295,7 @@ function App() {
             {/* Bar Chart - Requests per Model per Day (All Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
               <h2 className="text-2xl font-semibold">
-                Requests per Model per Day (All Models)
+                {unitLabel} per Model per Day (All Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
                     - {displayUser(selectedSearchUser)}
@@ -2216,7 +2345,7 @@ function App() {
                                     />
                                     <span>{entry.name}:</span>
                                   </div>
-                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                                 </div>
                               ))}
                             </div>
@@ -2244,7 +2373,7 @@ function App() {
             {/* Bar Chart - Requests per Model per Day (Top 5 Models) */}
             <div className="flex justify-between items-center mb-2 mt-8">
               <h2 className="text-2xl font-semibold">
-                Requests per Model per Day (Top 5 Models)
+                {unitLabel} per Model per Day (Top 5 Models)
                 {selectedSearchUser && (
                   <span className="ml-2 text-lg font-medium text-blue-600">
                     - {displayUser(selectedSearchUser)}
@@ -2294,7 +2423,7 @@ function App() {
                                     />
                                     <span>{entry.name}:</span>
                                   </div>
-                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}</div>
+                                  <div className="font-medium">{Number(entry.value).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                                 </div>
                               ))}
                             </div>
@@ -2352,8 +2481,22 @@ function App() {
                 X: Active Days % of Month, Y: Quota Utilization %
               </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              {Object.entries(BEHAVIOR_DESCRIPTIONS).map(([segment, description]) => (
+                <div key={segment} className="flex items-start gap-2 text-sm">
+                  <span
+                    className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: BEHAVIOR_COLORS[segment] || '#7C3AED' }}
+                  />
+                  <div>
+                    <span className="font-medium">{segment}</span>
+                    <span className="text-muted-foreground">: {description}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
             <Separator className="mb-6" />
-            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} />
+            <BehaviorScatterChart behaviorData={behaviorData} displayUser={displayUser} unitLabel={unitLabel} />
           </div>
         </div>
       )}
@@ -2579,9 +2722,9 @@ function App() {
                     <h3 className="text-md font-medium mb-3">All Premium Requests</h3>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Total Requests:</span>
+                      <span className="text-sm text-muted-foreground">Total {unitLabel}:</span>
                         <span className="font-bold">
-                          {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                          {data.reduce((sum, item) => sum + item.requestsUsed, 0).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -2616,7 +2759,7 @@ function App() {
                                             selectedPlan === COPILOT_PLANS.BUSINESS ? 300 : 1000;
                             const totalExceeding = projectedUsersData.reduce((sum, user) => 
                               sum + Math.max(0, user.projectedMonthlyTotal - planLimit), 0);
-                            return totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0});
+                            return totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2});
                           })()}
                         </span>
                       </div>
@@ -2651,7 +2794,7 @@ function App() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Exceeding Requests:</span>
                         <span className="font-bold text-red-600">
-                          {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 8, minimumFractionDigits: 0})}
+                          {getTotalRequestsForUsersExceedingQuota(data, selectedPlan).toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -2719,7 +2862,7 @@ function App() {
                       <div className="text-sm text-muted-foreground">Projected Monthly Total</div>
                       <div className="text-lg font-bold text-orange-600">
                         {projectedUsersData.reduce((sum, user) => sum + user.projectedMonthlyTotal, 0)
-                          .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                          .toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                       </div>
                     </div>
                     <div>
@@ -2774,16 +2917,16 @@ function App() {
                               </TableCell>
                               <TableCell className="font-medium text-sm" title={user.user}>{displayUser(user.user)}</TableCell>
                               <TableCell className="text-right text-sm">
-                                {user.currentRequests.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                                {user.currentRequests.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                               </TableCell>
                               <TableCell className="text-right text-sm">
-                                {user.dailyAverage.toLocaleString(undefined, {maximumFractionDigits: 1, minimumFractionDigits: 1})}
+                                {user.dailyAverage.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                               </TableCell>
                               <TableCell className="text-right font-medium text-orange-600 text-sm">
-                                {user.projectedMonthlyTotal.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                                {user.projectedMonthlyTotal.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                               </TableCell>
                               <TableCell className="text-right font-medium text-red-600 text-sm">
-                                +{exceedingBy.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                                +{exceedingBy.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                               </TableCell>
                             </TableRow>
                           );
@@ -2799,15 +2942,15 @@ function App() {
                           </TableCell>
                           <TableCell className="text-right font-bold text-sm">
                             {projectedUsersData.reduce((sum, user) => sum + user.currentRequests, 0)
-                              .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                              .toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                           </TableCell>
                           <TableCell className="text-right font-bold text-sm">
                             {(projectedUsersData.reduce((sum, user) => sum + user.dailyAverage, 0))
-                              .toLocaleString(undefined, {maximumFractionDigits: 1, minimumFractionDigits: 1})}
+                              .toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                           </TableCell>
                           <TableCell className="text-right font-bold text-orange-600 text-sm">
                             {projectedUsersData.reduce((sum, user) => sum + user.projectedMonthlyTotal, 0)
-                              .toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}
+                              .toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}
                           </TableCell>
                           <TableCell className="text-right font-bold text-red-600 text-sm">
                             {(() => {
@@ -2819,7 +2962,7 @@ function App() {
                               
                               return (
                                 <div className="flex flex-col items-end">
-                                  <div>+{totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 0, minimumFractionDigits: 0})}</div>
+                                  <div>+{totalExceeding.toLocaleString(undefined, {maximumFractionDigits: 2, minimumFractionDigits: 2})}</div>
                                   <div className="text-xs text-muted-foreground">
                                     ${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} cost
                                   </div>

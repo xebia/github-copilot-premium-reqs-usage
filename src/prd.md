@@ -1,7 +1,7 @@
-# GitHub Copilot Premium Requests Usage Analyzer
+# GitHub Copilot AIC Usage Analyzer
 
 ## Core Purpose & Success
-- **Mission Statement**: A tool that visualizes GitHub Copilot premium request usage to help teams monitor and optimize their AI resource consumption.
+- **Mission Statement**: A tool that visualizes GitHub Copilot AI Credits (AIC) usage to help teams monitor and optimize their AI resource consumption.
 - **Success Indicators**: Users can upload CSV data and quickly understand usage patterns, model distribution, and quota status through clear visualizations.
 - **Experience Qualities**: Efficient, Insightful, Professional
 

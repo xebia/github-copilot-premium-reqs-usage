@@ -29,30 +29,18 @@ describe('High-precision numeric values', () => {
 })
 
 describe('formatRequestCount', () => {
-  it('should match toLocaleString with maximumFractionDigits 8 (locale-agnostic)', () => {
-    const cases = [5, 1000, 1.07033985, 107.03398500000002, 107.03]
+  it('should match toLocaleString with maximumFractionDigits 2 (locale-agnostic)', () => {
+    const cases = [5, 1000, 1.07, 107.03, 0.5]
     for (const v of cases) {
-      const expected = v.toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })
+      const expected = v.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })
       expect(formatRequestCount(v)).toBe(expected)
     }
   })
 
-  it('should preserve more precision than a 2-decimal format for high-precision values', () => {
-    const value = 107.03398500000002
-    const twoDP = value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
-    const result = formatRequestCount(value)
-    // Should have more digits than the 2dp version
-    expect(result).not.toBe(twoDP)
-    expect(result.length).toBeGreaterThan(twoDP.length)
-  })
-
-  it('should show whole numbers without decimal part', () => {
+  it('should always show 2 decimal places (including whole numbers)', () => {
     const result = formatRequestCount(5)
-    const expected = (5).toLocaleString(undefined, { maximumFractionDigits: 8, minimumFractionDigits: 0 })
+    const expected = (5).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })
     expect(result).toBe(expected)
-    // Whole numbers must not have a decimal separator
-    const decSep = (1.1).toLocaleString(undefined, { maximumFractionDigits: 1 })[1]
-    expect(result).not.toContain(decSep)
   })
 })
 

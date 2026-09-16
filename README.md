@@ -1,13 +1,13 @@
-# GitHub Copilot Premium Requests Usage Analyzer
+# GitHub Copilot AIC Usage Analyzer
 
-A single-page application that visualizes GitHub Copilot premium request usage data from CSV exports. This tool helps you understand your team's Copilot usage patterns.
+A single-page application that visualizes GitHub Copilot AI Credits (AIC) usage data from CSV exports. This tool helps you understand your team's Copilot usage patterns.
 
 ## Quick Start
 
-Need to analyze the premium requests CSV? 
-I created a SPA with Spark and Coding Agent to display an overview of the Premium Requests CSV that you can currently download (no API yet 😓), so share it where needed! 
+Need to analyze the AI Credits (AIC) usage CSV? 
+I created a SPA with Spark and Coding Agent to display an overview of the AIC Usage CSV that you can currently download (no API yet 😓), so share it where needed! 
  
-Hosted on GitHub Pages: [GitHub Copilot Premium Requests Usage Analyzer](https://xebia.github.io/github-copilot-premium-reqs-usage/)
+Hosted on GitHub Pages: [GitHub Copilot AIC Usage Analyzer](https://xebia.github.io/github-copilot-premium-reqs-usage/)
 
 Upload the CSV from the enterprise export (Billing and Licenses → Usage → Export dropdown right top)
  
@@ -56,7 +56,7 @@ Result:
 
 ## CSV Format
 
-The application accepts either of the following CSV export formats from GitHub Copilot premium requests:
+The application accepts either of the following CSV export formats from GitHub Copilot AI Credits (AIC) usage:
 
 **Original format (until October):**
 ```

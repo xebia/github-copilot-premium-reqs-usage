@@ -76,9 +76,11 @@ describe('useLocalStorage', () => {
   });
 
   it('should return initial value when stored JSON is malformed', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     localStorage.setItem('test-key', 'not-valid-json{');
     const { result } = renderHook(() => useLocalStorage('test-key', 'fallback'));
     expect(result.current[0]).toBe('fallback');
+    vi.restoreAllMocks();
   });
 
   it('should handle numeric initial values', () => {

@@ -1,6 +1,6 @@
-# Deploying GitHub Copilot Premium Requests Usage Analyzer to GitHub Pages
+# Deploying GitHub Copilot AIC Usage Analyzer to GitHub Pages
 
-This document explains how to deploy the GitHub Copilot Premium Requests Usage Analyzer application to GitHub Pages.
+This document explains how to deploy the GitHub Copilot AIC Usage Analyzer application to GitHub Pages.
 
 ## Automatic Deployment with GitHub Actions
 
