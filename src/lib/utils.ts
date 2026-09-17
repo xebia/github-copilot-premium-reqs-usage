@@ -48,23 +48,67 @@ export interface AggregatedData {
   exceedingRequests: number;
 }
 
+/**
+ * Split a single CSV line into fields, honouring RFC 4180 quoting rules
+ * (quoted fields may contain commas, and `""` is an escaped quote).
+ */
+function splitCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      fields.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  fields.push(current);
+
+  return fields.map(field => field.trim());
+}
+
+/**
+ * Parse a CSV line into fields. Some GitHub billing exports wrap every row in a
+ * single extra pair of quotes and escape the inner quotes
+ * (e.g. `"date,""username"",""model"""`), so unwrap that case before splitting.
+ */
+function parseCsvLine(line: string): string[] {
+  const fields = splitCsvLine(line);
+  if (fields.length === 1 && fields[0].includes(',')) {
+    return splitCsvLine(fields[0]);
+  }
+  return fields;
+}
+
 export function parseCSV(csv: string): CopilotUsageData[] {
-  const lines = csv.trim().split('\n');
+  // Strip a UTF-8 BOM and normalize line endings before splitting into rows
+  const lines = csv.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim().split('\n');
   if (lines.length < 2) {
     throw new Error('CSV must contain a header row and at least one data row');
   }
 
   // Parse header row and build a mapping from expected field to column index (case-insensitive)
-  const headerLine = lines[0].trim();
-  const headerMatches = headerLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
-  if (!headerMatches) {
+  const headers = parseCsvLine(lines[0].trim());
+  if (headers.length === 0) {
     throw new Error('CSV header could not be parsed');
   }
-  const headers = headerMatches.map(m => {
-    let processed = m.endsWith(',') ? m.slice(0, -1) : m;
-    processed = processed.replace(/^"(.*)"$/, '$1');
-    return processed.trim();
-  });
 
   // Map CSV field names to internal field names (case-insensitive)
   const FIELD_MAP: Record<string, string> = {
@@ -133,39 +177,30 @@ export function parseCSV(csv: string): CopilotUsageData[] {
   return lines.slice(1).map((line, index) => {
     const trimmedLine = line.trim();
     if (!trimmedLine) return null;
-  const matches = trimmedLine.match(/("([^"]*)"|([^,]*))(,|$)/g);
-    if (!matches) {
+    const fields = parseCsvLine(trimmedLine);
+    if (fields.length === 0) {
       throw new Error(`Invalid CSV row format at line ${index + 2}`);
     }
-    // Pad matches to header length (in case of trailing commas)
-    while (matches.length < headers.length) matches.push('');
+    // Pad fields to header length (in case of trailing commas)
+    while (fields.length < headers.length) fields.push('');
 
     // Extract values by mapped index
     const getValue = (field: keyof CopilotUsageData) => {
       const idx = fieldToIndex[field]!;
-      let val = matches[idx] || '';
-      val = val.endsWith(',') ? val.slice(0, -1) : val;
-      val = val.replace(/^"(.*)"$/, '$1');
-      return val.trim();
+      return fields[idx] ?? '';
     };
 
     const getOptionalValue = (field: keyof CopilotUsageData): string | undefined => {
       const idx = fieldToIndex[field];
       if (idx === undefined) return undefined;
-      let val = matches[idx] || '';
-      val = val.endsWith(',') ? val.slice(0, -1) : val;
-      val = val.replace(/^"(.*)"$/, '$1');
-      const trimmed = val.trim();
-      return trimmed === '' ? undefined : trimmed;
+      const val = fields[idx] ?? '';
+      return val === '' ? undefined : val;
     };
 
     const getOptionalString = (field: keyof CopilotUsageData): string | undefined => {
       const idx = fieldToIndex[field];
       if (idx === undefined) return undefined;
-      let val = matches[idx] || '';
-      val = val.endsWith(',') ? val.slice(0, -1) : val;
-      val = val.replace(/^"(.*)"$/, '$1');
-      return val.trim();
+      return fields[idx] ?? '';
     };
 
     const parseOptionalNumber = (value: string | undefined): number | undefined => {
