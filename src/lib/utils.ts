@@ -1523,6 +1523,46 @@ export interface AICDataStatus {
   hasAmountData: boolean;
 }
 
+const AI_CREDIT_SKU = 'copilot_ai_credit';
+const AI_CREDIT_UNIT_TYPE = 'ai-credits';
+
+/**
+ * Whether a record represents AI Credits consumption in the current export format,
+ * identified by the `sku` (`copilot_ai_credit`) or `unit_type` (`ai-credits`) column.
+ */
+export function isAICreditRecord(item: CopilotUsageData): boolean {
+  return (
+    item.sku?.trim().toLowerCase() === AI_CREDIT_SKU ||
+    item.unitType?.trim().toLowerCase() === AI_CREDIT_UNIT_TYPE
+  );
+}
+
+/**
+ * Effective AI Credits quantity for a record.
+ *
+ * Current GitHub exports ship `aic_quantity` as a literal `0` on every row and carry the
+ * actual consumption in the `quantity` column (with `unit_type` = `ai-credits`), so fall
+ * back to that. Older exports that populate `aic_quantity` keep using it.
+ */
+export function getEffectiveAICQuantity(item: CopilotUsageData): number | undefined {
+  if (item.aicQuantity !== undefined && item.aicQuantity > 0) return item.aicQuantity;
+  if (isAICreditRecord(item)) return item.requestsUsed;
+  return item.aicQuantity;
+}
+
+/**
+ * Effective AI Credits cost for a record, falling back to `gross_amount` (or `net_amount`)
+ * for AI-credit rows where `aic_gross_amount` is zero.
+ */
+export function getEffectiveAICGrossAmount(item: CopilotUsageData): number | undefined {
+  if (item.aicGrossAmount !== undefined && item.aicGrossAmount > 0) return item.aicGrossAmount;
+  if (isAICreditRecord(item)) {
+    if (item.grossAmount !== undefined) return item.grossAmount;
+    if (item.netAmount !== undefined) return item.netAmount;
+  }
+  return item.aicGrossAmount;
+}
+
 /**
  * Returns information about whether AIC fields are present and have meaningful data.
  */
@@ -1533,13 +1573,16 @@ export function getAICDataStatus(data: CopilotUsageData[]): AICDataStatus {
   let hasAmountData = false;
 
   for (const item of data) {
-    if (item.aicQuantity !== undefined) {
+    const quantity = getEffectiveAICQuantity(item);
+    const amount = getEffectiveAICGrossAmount(item);
+
+    if (quantity !== undefined) {
       hasQuantityField = true;
-      if (item.aicQuantity > 0) hasQuantityData = true;
+      if (quantity > 0) hasQuantityData = true;
     }
-    if (item.aicGrossAmount !== undefined) {
+    if (amount !== undefined) {
       hasAmountField = true;
-      if (item.aicGrossAmount > 0) hasAmountData = true;
+      if (amount > 0) hasAmountData = true;
     }
     if (hasQuantityData && hasAmountData) break;
   }
@@ -1584,11 +1627,14 @@ export function getAICData(data: CopilotUsageData[], groupBy: AICGroupBy = 'day'
       grouped[period] = { label, period, aicQuantity: 0, aicGrossAmount: 0 };
     }
 
-    if (item.aicQuantity !== undefined) {
-      grouped[period].aicQuantity += item.aicQuantity;
+    const quantity = getEffectiveAICQuantity(item);
+    const amount = getEffectiveAICGrossAmount(item);
+
+    if (quantity !== undefined) {
+      grouped[period].aicQuantity += quantity;
     }
-    if (item.aicGrossAmount !== undefined) {
-      grouped[period].aicGrossAmount += item.aicGrossAmount;
+    if (amount !== undefined) {
+      grouped[period].aicGrossAmount += amount;
     }
   });
 
